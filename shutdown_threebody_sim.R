@@ -8,22 +8,25 @@ library(tidytree)
 library(treeio) #Via bioconductor
 library(ggtree) # Via bioconductor
 
-INF_ALPHA_PRE <- 3
-INF_BETA_PRE <- 8
+INF_ALPHA_PRE <- 4 
+INF_BETA_PRE <-6
 INF_ALPHA_DURING <- 2
 INF_BETA_DURING <- 8
-INF_ALPHA_POST <- 2
-INF_BETA_POST <- 8
+INF_ALPHA_POST <- 3
+INF_BETA_POST <- 7
 
-INCUB_MEAN <- 7
-INCUB_SD <- 1
+INCUB_MEAN <- 3
+INCUB_SD <- 0.5
 PROB_EXIT <- 0.1
-CONTACT_MEAN <- 1
+
+CONTACT_PRE <- 1.5
+CONTACT_DURING <- 0.5
+CONTACT_POST <- 0.9
 
 PROB_MOVE_NORMAL <- 0.1
 PROB_MOVE_SHUTDOWN <- 0.001
 T_START_SHUTDOWN <- 40
-T_STOP_SHUTDOWN <- 80
+T_STOP_SHUTDOWN <- 120
 
 MAKE_GRAPH <- FALSE
 
@@ -47,19 +50,25 @@ p_Move_fct <- function(t,prestime, current.in){ #Probability host moves to a dif
     return(PROB_MOVE_NORMAL)
   } 
 }
-n_Contact_fct <- function(t) rpois(1, lambda = CONTACT_MEAN) #Number of contacts for host
-
+n_Contact_fct <- function(t,prestime,current.in){
+  contact_mean <- case_when(
+    prestime <= T_START_SHUTDOWN ~ CONTACT_PRE,
+    prestime <= T_STOP_SHUTDOWN ~ CONTACT_DURING,
+    TRUE ~ CONTACT_POST
+  )
+  rpois(1, lambda = contact_mean) #Number of contacts for host
+}
 #Time dependent, host-independent force of infection
 #Host-dependent incubation
-p_Trans_fct <- function(t, prestime) {
+p_Trans_fct <- function(t, prestime,t_incub) {
   p <- if (prestime < T_START_SHUTDOWN) {
-    rbeta(1, INF_ALPHA_PRE,  INF_BETA_PRE)
+    rbeta(1, INF_ALPHA_PRE, INF_BETA_PRE)
   } else if (prestime < T_STOP_SHUTDOWN) {
     rbeta(1, INF_ALPHA_DURING,  INF_BETA_DURING)
   } else {
     rbeta(1, INF_ALPHA_POST, INF_BETA_POST)
   }
-  ifelse(t < 3, 0, p)  # no transmission until incubation has elapsed
+  ifelse(t < t_incub, 0,p)  # no transmission until incubation has elapsed
 }
 
 d_Incub <- function(n, mean=INCUB_MEAN, sd=INCUB_SD){
@@ -83,14 +92,19 @@ td_Inf <- tibble(x = seq(0,1,0.002)) |>
          during_y = dbeta(x, INF_ALPHA_DURING, INF_BETA_DURING),
          post_y   = dbeta(x, INF_ALPHA_POST, INF_BETA_POST))
 
-ggplot(td_Inf,aes(x=x)) + 
-  geom_area(aes(y=pre_y),alpha=0.4,linewidth=1,fill="firebrick1",color="black") + 
-  geom_area(aes(y=during_y),alpha=0.4,linewidth=1,fill="royalblue",color="black") + 
-  geom_area(aes(y=post_y),alpha=0.4,linewidth=1,fill="forestgreen",color="black") + 
-  labs(x = "Infection Probability",
-       y = "Density") +
-  theme_bw() 
-
+ggplot(td_Inf, aes(x = x)) + 
+  geom_area(aes(y = pre_y, fill = "Pre-Lockdown"), alpha = 0.4, color = "black", linewidth = 1) +
+  geom_area(aes(y = during_y, fill = "During"), alpha = 0.4, color = "black", linewidth = 1) +
+  geom_area(aes(y = post_y, fill = "Post-Lockdown"), alpha = 0.4, color = "black", linewidth = 1) +
+  scale_fill_manual(
+    name   = "Phase",
+    values = c("Pre-Lockdown" = "firebrick1",
+               "During"       = "royalblue",
+               "Post-Lockdown"= "forestgreen"),
+    breaks = c("Pre-Lockdown", "During", "Post-Lockdown")
+  ) +
+  labs(x = "Infection Probability", y = "Density") +
+  theme_bw()
 
 set.seed(66)
 MAX_OUTBREAK <- 20000
@@ -105,8 +119,8 @@ threebody_sim <- nosoiSim(type="single", #Single vs two host species
                       init.structure = "O",
                       
                       nContact = n_Contact_fct, #Main function for agent contacts
-                      param.nContact = NULL, #Any required parameters for main function 
-                      timeDep.nContact = FALSE, #Does the main function depend on the simulation time
+                      param.nContact = list(), #Any required parameters for main function 
+                      timeDep.nContact = TRUE, #Does the main function depend on the simulation time
                       
                       pExit = p_Exit_fct, #Same structure for exit probability
                       param.pExit = NULL,
@@ -114,7 +128,7 @@ threebody_sim <- nosoiSim(type="single", #Single vs two host species
                       
                       pTrans = p_Trans_fct, #Finally for the transmission probability
                       param.pTrans = param_pTrans, #Pass the distributions we created for it
-                      timeDep.pTrans = TRUE, #Even though pTrans does depend on the individual time, it doesn't depend on the absolute simulation time
+                      timeDep.pTrans = TRUE,
                       
                       pMove = p_Move_fct,
                       param.pMove = list(),
@@ -132,8 +146,8 @@ sim_summary <- summary(threebody_sim)$dynamics %>%
 ggplot(sim_summary, aes(x=t,y=n)) +
   geom_point(color="firebrick") +
   geom_line(alpha=0.6) +
-  geom_vline(xintercept = 40,color="royalblue",lty="dashed",linewidth = 1) +
-  geom_vline(xintercept = 80,color="royalblue",lty="dashed",linewidth = 1) +
+  geom_vline(xintercept = T_START_SHUTDOWN,color="royalblue",lty="dashed",linewidth = 1) +
+  geom_vline(xintercept = T_STOP_SHUTDOWN,color="royalblue",lty="dashed",linewidth = 1) +
   scale_y_log10() +
   labs(x="Simulation Time",y="New Cases") +
   theme_bw()

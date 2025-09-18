@@ -8,7 +8,7 @@ phastSim \
     --eteFormat 1 \
     --outpath static_three/ \
     --createFasta \
-    --scale 0.000002
+    --scale 0.00001
 
 #Use PairSNP to just get the identical sequences
 pairsnp -s -d 0 static_three/sars-cov-2_simulation_output.fasta > static_three/idseq.tsv

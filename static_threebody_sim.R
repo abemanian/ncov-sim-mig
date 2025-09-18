@@ -9,16 +9,14 @@ library(treeio) #Via bioconductor
 library(ggtree) # Via bioconductor
 
 INF_ALPHA = 5
-INF_BETA = 3
+INF_BETA = 5
 
-INCUB_MEAN = 7
-INCUB_SD = 1
-
+INCUB_MEAN = 3
+INCUB_SD = 0.5
 PROB_EXIT = 0.1
-
 CONTACT_MEAN = 1
 
-PROB_MOVE = 0.3
+PROB_MOVE = 0.1
 #For Nosoi, diagonal should be zero as there is a separate movement probability
 MOVE_MATRIX <- matrix(c(
   0,0.9,0.1,
@@ -93,13 +91,16 @@ threebody_sim <- nosoiSim(type="single", #Single vs two host species
                       print.progress = TRUE
 )
 
-sim_summary <- summary(threebody_sim)
+sim_summary <- summary(threebody_sim)$dynamics %>% 
+  group_by(t) %>%
+  summarize(n=sum(Count))
 
-ggplot(sim_summary$dynamics, aes(x=t,y=Count)) +
-  geom_point() +
-  geom_line() +
+ggplot(sim_summary, aes(x=t,y=n)) +
+  geom_point(color="firebrick") +
+  geom_line(alpha=0.6) +
+  scale_y_log10() +
+  labs(x="Simulation Time",y="New Cases") +
   theme_bw()
-
 data_sim<-getTableHosts(threebody_sim)
 graph_sim <- graph_from_data_frame(data_sim %>% 
                                      filter(!grepl("NA",inf.by)) %>% 
