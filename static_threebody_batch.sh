@@ -4,7 +4,7 @@
 
 #Remove any previous RR TSV and simulation files
 rm -f static_three/rr.tsv
-rm -f static_three/static_threebody.nwk
+rm -f static_three/tree.nwk
 rm -f static_three/idseq.tsv
 rm -f static_three/meta.tsv
 
@@ -18,7 +18,7 @@ for((i = 1; i <= 50; i ++)); do
     phastSim \
         --seed 17 \
         --ref wuhan.fasta \
-        --tree static_three/static_threebody.nwk \
+        --tree static_three/tree.nwk \
         --eteFormat 1 \
         --outpath static_three/ \
         --createFasta \
@@ -30,7 +30,7 @@ for((i = 1; i <= 50; i ++)); do
     Rscript static_threebody_RR.R --seed $i
 
     #Make sure the old iteration data files are not used for the next iteration if there is an error
-    rm -f static_three/static_threebody.nwk
+    rm -f static_three/tree.nwk
     rm -f static_three/idseq.tsv
     rm -f static_three/meta.tsv
 

@@ -166,6 +166,7 @@ if(DRAW_PLOTS){
     labs(color="Infection Deme")
 }
 
-  
+if (!dir.exists("static_three")) dir.create("static_three")
+
 write.tree(tree_sim@phylo,"static_three/static_threebody.nwk")
 write_tsv(data_sim,"static_three/static_threebody_meta.tsv")
