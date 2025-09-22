@@ -10,7 +10,6 @@ rr_phase <- read_tsv("shutdown_three/rr.tsv") %>%
 rr_boxplot <- ggplot(rr_phase, aes(x = deme_X, y = RR, fill = deme_Y)) +
   geom_hline(yintercept = 1, linewidth = 1, linetype = "dashed") +
   geom_boxplot(linewidth = 0.3) +
-  scale_y_log10() +
   theme_bw() +
   labs(x = "Deme", y = "Identical Sequence RR", fill = "Deme") +
   theme(legend.position = "bottom") +

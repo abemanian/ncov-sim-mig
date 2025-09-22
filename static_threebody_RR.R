@@ -16,8 +16,7 @@ collect_args <- function(){
 args <- collect_args()
 sim_seed <- args$seed
 
-static_meta <- read_tsv("./static_three/static_threebody_meta.tsv") %>% 
-  group_by(inf.in) 
+static_meta <- read_tsv("./static_three/static_threebody_meta.tsv", show_col_types = FALSE)
 static_pairs <- read_tsv("./static_three/idseq.tsv")
 
 colnames(static_pairs) <- c("X","Y","Dist")

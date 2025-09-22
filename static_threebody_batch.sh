@@ -2,11 +2,13 @@
 #Use ncov-sim as the environment (needs python 3.12)
 #2e-6 is approximate sites per day evolution rate for SARS-CoV-2
 
-#Remove any previous RR TSV and simulation files
+# Remove any previous RR TSV and simulation files
 rm -f static_three/rr.tsv
 rm -f static_three/tree.nwk
 rm -f static_three/idseq.tsv
 rm -f static_three/meta.tsv
+rm -f static_three/sars-cov-2_simulation_output.fasta
+rm -f static_three/sars-cov-2_simulation_output.txt
 
 for((i = 1; i <= 50; i ++)); do
     echo "Seed: $i"

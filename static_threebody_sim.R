@@ -145,7 +145,6 @@ if(DRAW_PLOTS){
   ggplot(sim_summary, aes(x=t,y=n)) +
     geom_point(color="firebrick") +
     geom_line(alpha=0.6) +
-    scale_y_log10() +
     labs(x="Simulation Time",y="New Cases") +
     theme_bw()
   ggraph(graph_sim, layout = "kk") +

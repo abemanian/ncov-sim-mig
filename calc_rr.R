@@ -39,8 +39,8 @@ calc_rr <- function(meta,pairs,
   
   rr <- pairs_sym %>%
     group_by(deme_X,deme_Y) %>%
-    summarize(n_XY = n() %>% as.numeric()) %>%
-    right_join(zero_grid) %>%
+    summarize(n_XY = n() %>% as.numeric(), .groups = "drop") %>%
+    right_join(zero_grid, by = c("deme_X", "deme_Y")) %>%
     mutate(n_XY = ifelse(is.na(n_XY),0,n_XY)) %>%
     group_by(deme_X) %>%
     mutate(n_X = sum(n_XY)) %>%

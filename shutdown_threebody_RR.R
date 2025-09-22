@@ -17,8 +17,7 @@ collect_args <- function() {
 args <- collect_args()
 sim_seed <- args$seed
 
-shutdown_meta <- read_tsv("./shutdown_three/meta.tsv") %>%
-  group_by(inf.in)
+shutdown_meta <- read_tsv("./shutdown_three/meta.tsv", show_col_types = FALSE)
 shutdown_pairs <- read_tsv("./shutdown_three/idseq.tsv")
 colnames(shutdown_pairs) <- c("X", "Y", "Dist")
 shutdown_pairs <- filter(shutdown_pairs, X %in% shutdown_meta$hosts.ID) %>%
