@@ -5,17 +5,16 @@ qlibrary <- function(pkg, ...) {
 
 qlibrary("nosoi")
 qlibrary("tidyverse")
-qlibrary('viridis')
-qlibrary('igraph')
-qlibrary('ggraph')
-qlibrary('ape')
-qlibrary('tidytree')
-qlibrary('treeio')
-qlibrary('ggtree')
-qlibrary('argparse')
+qlibrary("viridis")
+qlibrary("igraph")
+qlibrary("ggraph")
+qlibrary("ape")
+qlibrary("tidytree")
+qlibrary("treeio")
+qlibrary("ggtree")
 
 collect_args <- function(){
-  parser <- ArgumentParser()
+  parser <- argparse::ArgumentParser()
   parser$add_argument('--seed', type = 'integer', default = 66, help = 'Simulation Seed')
   parser$parse_args()
 }
@@ -41,6 +40,10 @@ THRESHOLD_SCALE <- 0.5
 THRESHOLD_TIME <- 150
 THRESHOLD_WIDTH <- 200
 
+ISOLATED_SCENARIO <- TRUE
+ISOLATED_DEMES <- c("A")
+ISOLATED_TIME <- 150
+ISOLATED_MOVEMENT <- 0
 
 # Carrying capacity parameters
 MAX_CAPACITY <- 300
@@ -66,7 +69,15 @@ MOVE_MATRIX <- matrix(c(
 
 # Main functions
 p_Exit_fct <- function(t){PROB_EXIT}
-p_Move_fct <- function(t){PROB_MOVE}
+p_Move_fct <- function(t,prestime,current.in){
+  if(current.in == "A"){
+    ifelse(prestime >= ISOLATED_TIME & ISOLATED_SCENARIO,
+    ISOLATED_MOVEMENT,
+    PROB_MOVE
+  )}
+  if(current.in == "B"){PROB_MOVE}
+  if(current.in == "O"){PROB_MOVE}
+}
 n_Contact_fct <- function(t) rpois(1, lambda = CONTACT_MEAN)
 
 # Transmission probability with carrying capacity effect
@@ -142,8 +153,8 @@ simulate_until_size <- function(tries, min_inf, ...) {
                     hostCount.pTrans = TRUE,
                     pMove = p_Move_fct,
                     param.pMove = list(),
-                    timeDep.pMove = FALSE,
-                    diff.pMove = FALSE,
+                    timeDep.pMove = TRUE,
+                    diff.pMove = TRUE,
                     prefix.host = "H",
                     print.progress = TRUE)
     n_inf <- nrow(getTableHosts(sim))
