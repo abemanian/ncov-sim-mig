@@ -28,7 +28,7 @@ for((i = 1; i <= 50; i ++)); do
         --scale 0.00001
 
     # Use PairSNP to just get the identical sequences
-    pairsnp -s -t 14 -d 0 carrying_three/sars-cov-2_simulation_output.fasta > carrying_three/idseq.tsv
+    pairsnp -s -t 24 -d 0 carrying_three/sars-cov-2_simulation_output.fasta > carrying_three/idseq.tsv
 
     Rscript carrying_capacity_RR.R --seed $i
 

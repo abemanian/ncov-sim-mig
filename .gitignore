@@ -1,4 +1,5 @@
 .Rproj*
+.Rprofile
 .DS_Store
 *.fasta
 *.nwk

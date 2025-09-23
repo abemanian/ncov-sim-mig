@@ -1,6 +1,8 @@
 # install_packages.R
 # This script installs all required CRAN and Bioconductor packages for static_threebody_sim.R
 # Written using CoPilot
+options(repos = c(CRAN = "https://ftp.osuosl.org/pub/cran/")) #Change to whatever local mirror makes sense
+
 
 # Install pak and BiocManager if not already installed
 if (!requireNamespace("pak", quietly = TRUE)) install.packages("pak")
