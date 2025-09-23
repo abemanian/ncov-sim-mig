@@ -53,7 +53,7 @@ BASE_INF_BETA <- 8
 #Immunization Scenario Parameters
 #For this scenario, deme A will have a fraction of
 # the population immunized at a certain time point
-IMMUNE_SCENARIO <- TRUE
+IMMUNE_SCENARIO <- FALSE
 IMMUNIZATION_TIME <- 150
 IMMUNIZATION_FRACTION <- 0.8
 
