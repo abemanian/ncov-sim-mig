@@ -19,11 +19,13 @@ qlibrary('argparse')
 collect_args <- function(){
   parser <- ArgumentParser()
   parser$add_argument('--seed', type = 'integer', default = 66, help = 'Simulation Seed')
+  parser$add_argument('--draw', action = 'store_true', default = FALSE, help = 'Draw plots')
   parser$parse_args()
 }
 
 args <- collect_args()
 sim_seed <- args$seed
+draw_plots <- args$draw
 
 INF_ALPHA = 5
 INF_BETA = 5
@@ -134,8 +136,7 @@ tip_meta <- data_sim %>%
   )
 tr <- tree_sim@phylo
 
-DRAW_PLOTS <- FALSE
-if(DRAW_PLOTS){
+if(draw_plots){
   ggplot(td_Inf,aes(x=x,y=y)) + 
   geom_area(alpha=0.4,linewidth=1,fill="firebrick1",color="black") + 
   labs(title = paste0("Infection Probability Distribution: Alpha = ",INF_ALPHA," Beta = ",INF_BETA),

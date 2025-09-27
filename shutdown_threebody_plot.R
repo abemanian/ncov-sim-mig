@@ -22,12 +22,20 @@ ggsave(filename = "shutdown_three/rr_boxplot.jpg",
   width = 7,
   units = "in")
 
-# Load sliding window nRR data
-rr_sliding <- read_tsv("shutdown_three/rr_sliding.tsv")
+# Load sliding window RR data
+rr_sliding <- read_tsv("shutdown_three/rr_sliding.tsv") %>%
+  mutate(seed = as.factor(seed))
+
+# RR over time plot
 rr_scatter_smooth <- ggplot(rr_sliding,
-       aes(x = tpoint, y = RR + 1E-3, color = deme_Y)) +
-  geom_point(alpha = 0.5, size = 1) +
-  geom_smooth(se = TRUE, method = "loess", formula = y ~ x, linewidth = 1) +
+       aes(x = tpoint, y = RR + 1E-3, color = deme_Y,
+           group = interaction(seed, deme_Y))) +
+  geom_line(alpha = 0.2, linewidth = 0.2) +
+  geom_smooth(aes(group = deme_Y), 
+    se = TRUE, 
+    method = "loess", 
+    formula = y ~ x, 
+    linewidth = 1) +
   theme_bw() +
   labs(
     x = "Date",
@@ -40,6 +48,7 @@ rr_scatter_smooth <- ggplot(rr_sliding,
   coord_cartesian(ylim = c(0.001, 10)) +
   facet_wrap(vars(deme_X), ncol = 1) +
   scale_color_manual(values = c("A" = "#F8766D", "O" = "#00BFC4", "B" = "#7CAE00"))
+
 ggsave(filename = "shutdown_three/rr_scatter_smooth.jpg",
   plot = rr_scatter_smooth,
   dpi = 192,
@@ -50,11 +59,16 @@ ggsave(filename = "shutdown_three/rr_scatter_smooth.jpg",
 # Only plot off-diagonal (between demes)
 rr_sliding_offdiag <- rr_sliding %>% filter(deme_X != deme_Y)
 
-# Scatter and smooth fit for nRR over time, colored by deme_Y, faceted by deme_X
+# Scatter and smooth fit for nRR over time
 nrr_scatter_smooth <- ggplot(rr_sliding_offdiag,
-       aes(x = tpoint, y = nRR, color = deme_Y)) +
-  geom_point(alpha = 0.5, size = 1) +
-  geom_smooth(se = TRUE, method = "loess", formula = y ~ x, linewidth = 1) +
+       aes(x = tpoint, y = nRR, color = deme_Y,
+           group = interaction(seed, deme_Y))) +
+  geom_line(alpha = 0.2, linewidth = 0.2) +
+  geom_smooth(aes(group = deme_Y),
+    se = TRUE,
+    method = "loess",
+    formula = y ~ x,
+    linewidth = 1) +
   theme_bw() +
   labs(
     x = "Date",

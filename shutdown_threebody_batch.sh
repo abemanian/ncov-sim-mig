@@ -10,7 +10,7 @@ rm -f shutdown_three/meta.tsv
 rm -f shutdown_three/sars-cov-2_simulation_output.fasta
 rm -f shutdown_three/sars-cov-2_simulation_output.txt
 
-for((i = 1; i <= 10; i ++)); do
+for((i = 1; i <= 50; i ++)); do
     echo "Seed: $i"
     SECONDS=0
 

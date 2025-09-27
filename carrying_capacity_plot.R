@@ -12,21 +12,36 @@ rr_boxplot <- ggplot(rr_total, aes(x = deme_X, y = RR, fill = deme_Y)) +
   labs(x = "Deme", y = "Identical Sequence RR", fill = "Deme") +
   theme(legend.position = "bottom")
 
-ggsave(filename = "carrying_three/rr_boxplot.jpg",
+ggsave(
+  filename = "carrying_three/rr_boxplot.jpg",
   plot = rr_boxplot,
   dpi = 192,
   height = 7,
   width = 7,
-  units = "in")
+  units = "in"
+)
 
 # Load sliding window RR data
-rr_sliding <- read_tsv("carrying_three/rr_sliding.tsv")
+rr_sliding <- read_tsv("carrying_three/rr_sliding.tsv") %>%
+  mutate(seed = as.factor(seed))
 
 # RR over time plot
-rr_scatter_smooth <- ggplot(rr_sliding,
-       aes(x = tpoint, y = RR + 1E-3, color = deme_Y)) +
-  geom_point(alpha = 0.01, size = 1) +
-  geom_smooth(se = TRUE, method = "loess", formula = y ~ x, linewidth = 1) +
+rr_scatter_smooth <- ggplot(
+  rr_sliding,
+  aes(
+    x = tpoint,
+    y = RR + 1E-6,
+    color = deme_Y,
+    group = interaction(seed, deme_Y)
+  )
+) +
+  geom_line(alpha = 0.2, linewidth = 0.2) +
+  geom_smooth(aes(group = deme_Y),
+    se = TRUE,
+    method = "loess",
+    formula = y ~ x,
+    linewidth = 1
+  ) +
   theme_bw() +
   labs(
     x = "Time",
@@ -34,25 +49,41 @@ rr_scatter_smooth <- ggplot(rr_sliding,
     color = "Deme"
   ) +
   scale_y_log10() +
-  coord_cartesian(ylim = c(0.001, 10)) +
+  coord_cartesian(ylim = c(1E-6, 10)) +
   facet_wrap(vars(deme_X), ncol = 1) +
-  scale_color_manual(values = c("A" = "#F8766D", "O" = "#00BFC4", "B" = "#7CAE00"))
+  scale_color_manual(values = c(
+    "A" = "#F8766D",
+    "O" = "#00BFC4",
+    "B" = "#7CAE00"
+  ))
 
-ggsave(filename = "carrying_three/rr_scatter_smooth.jpg",
+ggsave(
+  filename = "carrying_three/rr_scatter_smooth.jpg",
   plot = rr_scatter_smooth,
   dpi = 192,
   height = 9,
   width = 7,
-  units = "in")
+  units = "in"
+)
 
 # Only plot off-diagonal (between demes)
 rr_sliding_offdiag <- rr_sliding %>% filter(deme_X != deme_Y)
 
 # Scatter and smooth fit for nRR over time
-nrr_scatter_smooth <- ggplot(rr_sliding_offdiag,
-       aes(x = tpoint, y = nRR, color = deme_Y)) +
-  geom_point(alpha = 0.01, size = 1) +
-  geom_smooth(se = TRUE, method = "loess", formula = y ~ x, linewidth = 1) +
+nrr_scatter_smooth <- ggplot(
+  rr_sliding_offdiag,
+  aes(
+    x = tpoint, y = nRR, color = deme_Y,
+    group = interaction(seed, deme_Y)
+  )
+) +
+  geom_line(alpha = 0.2, linewidth = 0.2) +
+  geom_smooth(aes(group = deme_Y),
+    se = TRUE,
+    method = "loess",
+    formula = y ~ x,
+    linewidth = 1
+  ) +
   theme_bw() +
   labs(
     x = "Time",
@@ -61,11 +92,17 @@ nrr_scatter_smooth <- ggplot(rr_sliding_offdiag,
   ) +
   facet_wrap(vars(deme_X), ncol = 1) +
   coord_cartesian(ylim = c(0, 1)) +
-  scale_color_manual(values = c("A" = "#F8766D", "O" = "#00BFC4", "B" = "#7CAE00"))
+  scale_color_manual(values = c(
+    "A" = "#F8766D",
+    "O" = "#00BFC4",
+    "B" = "#7CAE00"
+  ))
 
-ggsave(filename = "carrying_three/nrr_scatter_smooth.jpg",
+ggsave(
+  filename = "carrying_three/nrr_scatter_smooth.jpg",
   plot = nrr_scatter_smooth,
   dpi = 192,
   height = 9,
   width = 7,
-  units = "in")
+  units = "in"
+)

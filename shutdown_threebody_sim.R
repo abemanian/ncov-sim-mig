@@ -1,4 +1,3 @@
-
 options(tidyverse.quiet = TRUE)
 qlibrary <- function(pkg, ...) {
   suppressPackageStartupMessages(library(pkg, quietly = TRUE, character.only = TRUE, ...))
@@ -19,11 +18,16 @@ qlibrary('argparse')
 collect_args <- function(){
   parser <- ArgumentParser()
   parser$add_argument('--seed', type = 'integer', default = 66, help = 'Simulation Seed')
+  parser$add_argument('--draw',
+    action = "store_true",
+    default = FALSE,
+    help = 'Draw plots')
   parser$parse_args()
 }
 
 args <- collect_args()
 sim_seed <- args$seed
+draw_plots <- args$draw
 
 INF_ALPHA_PRE <- 4 
 INF_BETA_PRE <-6
@@ -44,8 +48,6 @@ PROB_MOVE_NORMAL <- 0.1
 PROB_MOVE_SHUTDOWN <- 0.001
 T_START_SHUTDOWN <- 40
 T_STOP_SHUTDOWN <- 120
-
-DRAW_PLOTS <- FALSE
 
 #For Nosoi, diagonal should be zero as there is a separate movement probability
 MOVE_MATRIX <- matrix(c(
@@ -75,17 +77,44 @@ n_Contact_fct <- function(t,prestime,current.in){
   )
   rpois(1, lambda = contact_mean) #Number of contacts for host
 }
+
+MAX_OUTBREAK <- 10000
+MAX_TIME <- 1000
+MAX_TRIES <- 50
+MIN_INFECTED <- 100
+
+MAX_CAPACITY <- 300
+CAPACITY_MIDPOINT <- MAX_CAPACITY / 2
+CAPACITY_SCALE <- MAX_CAPACITY / 10
+
+calc_capacity_factor <- function(n) {
+  1 / (1 + exp((n - CAPACITY_MIDPOINT) / CAPACITY_SCALE))
+}
+
 #Time dependent, host-independent force of infection
 #Host-dependent incubation
-p_Trans_fct <- function(t, prestime,t_incub) {
-  p <- if (prestime < T_START_SHUTDOWN) {
+p_Trans_fct <- function(t, prestime, current.in, host.count, t_incub) {
+  # Get base probability based on phase
+  base_p <- if (prestime < T_START_SHUTDOWN) {
     rbeta(1, INF_ALPHA_PRE, INF_BETA_PRE)
   } else if (prestime < T_STOP_SHUTDOWN) {
     rbeta(1, INF_ALPHA_DURING,  INF_BETA_DURING)
   } else {
     rbeta(1, INF_ALPHA_POST, INF_BETA_POST)
   }
-  ifelse(t < t_incub, 0,p)  # no transmission until incubation has elapsed
+  
+  # Place factor (if needed for different demes)
+  # Required for nosoi function signature, but not used here
+  if(current.in == "A") {place_factor <- 1}
+  if(current.in == "O") {place_factor <- 1}
+  if(current.in == "B") {place_factor <- 1}
+
+  # Apply carrying capacity effect
+  capacity_factor <- calc_capacity_factor(host.count)
+  p <- base_p * capacity_factor * place_factor
+
+  # No transmission during incubation
+  ifelse(t < t_incub, 0, p)
 }
 
 d_Incub <- function(n, mean=INCUB_MEAN, sd=INCUB_SD){
@@ -113,10 +142,6 @@ td_Inf <- tibble(x = seq(0,1,0.002)) %>%
 
 # Outbreak simulation wrapper
 set.seed(sim_seed)
-MAX_OUTBREAK <- 20000
-MAX_TIME <- 1000
-MAX_TRIES <- 50
-MIN_INFECTED <- 100
 
 simulate_until_size <- function(tries, min_inf, ...) {
   for (k in 1:tries) {
@@ -140,6 +165,8 @@ simulate_until_size <- function(tries, min_inf, ...) {
                     param.pMove = list(),
                     timeDep.pMove = TRUE,
                     diff.pMove = FALSE,
+                    diff.pTrans = TRUE,
+                    hostCount.pTrans = TRUE,
                     prefix.host = "H",
                     print.progress = TRUE)
     n_inf <- nrow(getTableHosts(sim))
@@ -157,7 +184,7 @@ sim_summary <- summary(threebody_sim)$dynamics %>%
 data_sim <- getTableHosts(threebody_sim)
 
 # Plots
-if (DRAW_PLOTS) {
+if (draw_plots) {
   ggplot(td_Inf, aes(x = x)) + 
     geom_area(aes(y = pre_y, fill = "Pre-Lockdown"), alpha = 0.4, color = "black", linewidth = 1) +
     geom_area(aes(y = during_y, fill = "During"), alpha = 0.4, color = "black", linewidth = 1) +
@@ -177,9 +204,16 @@ if (DRAW_PLOTS) {
     geom_line(alpha = 0.6) +
     geom_vline(xintercept = T_START_SHUTDOWN, color = "royalblue", lty = "dashed", linewidth = 1) +
     geom_vline(xintercept = T_STOP_SHUTDOWN, color = "royalblue", lty = "dashed", linewidth = 1) +
-    scale_y_log10() +
     labs(x = "Simulation Time", y = "New Cases") +
     theme_bw()
+
+  ggsave(
+    filename = "shutdown_three/incidence.jpg",
+    dpi = 192,
+    height = 5,
+    width = 15,
+    units = "in"
+  )
 
   graph_sim <- graph_from_data_frame(data_sim %>%
                                        filter(!grepl("NA", inf.by)) %>%
@@ -188,14 +222,17 @@ if (DRAW_PLOTS) {
                                      vertices = data_sim)
   ggraph(graph_sim, layout = "kk") +
     geom_edge_link(alpha = 0.2) +
-    geom_node_point(size = 3, aes(color = inf.time)) +
+    geom_node_point(size = 0.5, aes(color = inf.time)) +
     scale_color_viridis(name = "Infection Time", option = "plasma") +
     theme_void()
-  ggraph(graph_sim, layout = "kk") +
-    geom_edge_link(alpha = 0.2) +
-    geom_node_point(size = 3, aes(color = inf.in), alpha = 0.4) +
-    scale_color_discrete(name = "Infection Deme") +
-    theme_void()
+
+  ggsave(
+    filename = "shutdown_three/transmission_tree.jpg",
+    dpi = 192,
+    height = 12,
+    width = 12,
+    units = "in"
+  )
 
   tree_sim <- getTransmissionTree(threebody_sim)
   tr <- tree_sim@phylo
@@ -235,9 +272,15 @@ if (DRAW_PLOTS) {
   sample_meta <- tree_sample %>% select(label, inf_in, t_inf, bin)
 
   ggtree(tr, size = 0.2, alpha = 0.4) %<+% sample_meta +
-    geom_tippoint(aes(color = inf_in), size = 3, alpha = 0.6) +
+    geom_tippoint(aes(color = inf_in), size = 0.5, alpha = 0.6) +
     theme_tree2() +
     labs(color = "Infection Deme")
+  ggsave(filename = "shutdown_three/phylo_tree.jpg",
+    dpi = 192,
+    height = 7,
+    width = 15,
+    units = "in"
+  )
 }
 
 

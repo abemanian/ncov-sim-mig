@@ -8,8 +8,8 @@ library(tidytree)
 library(treeio) #Via bioconductor
 library(ggtree) # Via bioconductor
 
-INF_ALPHA = 4
-INF_BETA = 3
+INF_ALPHA = 2
+INF_BETA = 4
 
 INCUB_MEAN = 5
 INCUB_SD = 3
@@ -82,12 +82,32 @@ graph_sim <- graph_from_data_frame(data_sim %>%
                               directed=T,
                               vertices=data_sim)
 ggraph(graph_sim, layout = "kk") +
-  geom_edge_link(alpha = 0.2) +
-  geom_node_point(size=12,aes(color = inf.time)) +   # vertex attr
-  geom_node_text(aes(label=name),color="#FFF") +
+  geom_edge_link(alpha = 0.4,size=1) +
+  geom_node_point(size=20,aes(color = inf.time)) +   # vertex attr
+  geom_node_label(aes(label=name),fill="white") +
   scale_color_viridis(name = "Infection Time",option="plasma") +
   theme_void()
+
+ggsave("basic_out/basic_sim.jpg",width=12,height=12,dpi=192)
 
 tree_sim <- getTransmissionTree(basic_sim)
 ggtree(tree_sim@phylo) + geom_tiplab() + theme_tree2()
 write.tree(tree_sim@phylo,"basic_out/basic.nwk")
+ggsave("basic_out/basic_tree.jpg",width=8,height=10,dpi=192)
+
+collect_args <- function() {
+  parser <- argparse::ArgumentParser()
+  parser$add_argument("--seed", 
+    type = "integer", 
+    default = 66, 
+    help = "Simulation Seed")
+  parser$add_argument("--draw",
+    action = "store_true",
+    default = FALSE,
+    help = "Draw plots")
+  parser$parse_args()
+}
+
+args <- collect_args()
+sim_seed <- args$seed
+draw_plots <- args$draw
