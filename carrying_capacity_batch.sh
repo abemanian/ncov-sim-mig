@@ -2,9 +2,13 @@
 # Use ncov-sim as the environment (needs python 3.12)
 # 2e-6 is approximate sites per day evolution rate for SARS-CoV-2
 
+# Scenario to run (basic, seasonal, isolation, immunization)
+SCENARIO="basic"
+
 # Remove any previous RR TSV and simulation files
 rm -f carrying_three/rr.tsv
 rm -f carrying_three/rr_sliding.tsv
+rm -f carrying_three/transmission_pairs.tsv
 rm -f carrying_three/tree.nwk
 rm -f carrying_three/idseq.tsv
 rm -f carrying_three/meta.tsv
@@ -15,7 +19,12 @@ for((i = 1; i <= 50; i ++)); do
     echo "Seed: $i"
     SECONDS=0
 
-    Rscript carrying_capacity_sim.R --seed $i
+    #Draw the initial simulation diagnostic plots for the first plot
+    if [ $i -eq 1 ]; then
+        Rscript carrying_capacity_sim.R --seed $i --scenario $SCENARIO --draw
+    else
+        Rscript carrying_capacity_sim.R --seed $i --scenario $SCENARIO
+    fi
 
     # Note for phastSim we keep seed constant across all simulations
     phastSim \
@@ -25,10 +34,17 @@ for((i = 1; i <= 50; i ++)); do
         --eteFormat 1 \
         --outpath carrying_three/ \
         --createFasta \
-        --scale 0.00001
+        --scale 0.000002
 
     # Use PairSNP to just get the identical sequences
     pairsnp -s -t 6 -d 0 carrying_three/sars-cov-2_simulation_output.fasta > carrying_three/idseq.tsv
+
+    # Analyze parent-child transmission pair sequence identity
+    Rscript transmission_pair_analysis.R \
+        --seed $i \
+        --meta carrying_three/meta.tsv \
+        --pairs carrying_three/idseq.tsv \
+        --output carrying_three/transmission_pairs.tsv
 
     Rscript carrying_capacity_RR.R --seed $i
 
@@ -40,4 +56,4 @@ for((i = 1; i <= 50; i ++)); do
     echo "Finished Seed $i in ${SECONDS} seconds"
 done
 
-Rscript carrying_capacity_plot.R
+Rscript carrying_capacity_plot.R --scenario $SCENARIO

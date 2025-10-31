@@ -94,20 +94,3 @@ tree_sim <- getTransmissionTree(basic_sim)
 ggtree(tree_sim@phylo) + geom_tiplab() + theme_tree2()
 write.tree(tree_sim@phylo,"basic_out/basic.nwk")
 ggsave("basic_out/basic_tree.jpg",width=8,height=10,dpi=192)
-
-collect_args <- function() {
-  parser <- argparse::ArgumentParser()
-  parser$add_argument("--seed", 
-    type = "integer", 
-    default = 66, 
-    help = "Simulation Seed")
-  parser$add_argument("--draw",
-    action = "store_true",
-    default = FALSE,
-    help = "Draw plots")
-  parser$parse_args()
-}
-
-args <- collect_args()
-sim_seed <- args$seed
-draw_plots <- args$draw

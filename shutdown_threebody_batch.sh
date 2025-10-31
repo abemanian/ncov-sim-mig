@@ -4,6 +4,7 @@
 
 # Remove any previous RR TSV and simulation files
 rm -f shutdown_three/rr.tsv
+rm -f shutdown_three/transmission_pairs.tsv
 rm -f shutdown_three/tree.nwk
 rm -f shutdown_three/idseq.tsv
 rm -f shutdown_three/meta.tsv
@@ -28,6 +29,13 @@ for((i = 1; i <= 50; i ++)); do
 
     # Use PairSNP to just get the identical sequences
     pairsnp -s -t 6 -d 0 shutdown_three/sars-cov-2_simulation_output.fasta > shutdown_three/idseq.tsv
+
+    # Analyze parent-child transmission pair sequence identity
+    Rscript transmission_pair_analysis.R \
+        --seed $i \
+        --meta shutdown_three/meta.tsv \
+        --pairs shutdown_three/idseq.tsv \
+        --output shutdown_three/transmission_pairs.tsv
 
     Rscript shutdown_threebody_RR.R --seed $i
 
