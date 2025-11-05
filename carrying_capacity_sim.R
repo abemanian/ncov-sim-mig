@@ -52,18 +52,18 @@ IMMUNE_SCENARIO <- (scenario == "immune")
 
 # Seasonal Cyclic Parameters
 # If true, global transmission is scaled cyclically over time
-CYCLE_SCALE <- 0.9
+CYCLE_SCALE <- 0.7
 CYCLE_PERIOD <- 200
 
 # Seasonal threshold parameters
 # If true, global transmission is scaled down during a specific time window
 THRESHOLD_SCALE <- 0.5
-THRESHOLD_TIME <- 150
-THRESHOLD_WIDTH <- 150
+THRESHOLD_TIME <- 200
+THRESHOLD_WIDTH <- 200
 
 # Isolation Scenario Parameters
 # If true, deme A will have reduced movement after a certain time point
-ISOLATED_TIME <- 150
+ISOLATED_TIME <- 200
 ISOLATED_MOVEMENT <- 0
 
 # Carrying capacity parameters
@@ -169,7 +169,7 @@ param_pTrans <- list(t_incub = d_Incub)
 
 # Outbreak simulation parameters
 set.seed(sim_seed)
-MAX_OUTBREAK <- 30000
+MAX_OUTBREAK <- 50000
 MAX_TIME <- 1000
 MAX_TRIES <- 50
 MIN_INFECTED <- 50
@@ -233,7 +233,7 @@ if (draw_plots) {
   ggplot(sim_summary, aes(x = t, y = n)) +
     geom_point(color = "firebrick") +
     geom_line(alpha = 0.6) +
-    labs(x = "Simulation Time", y = "New Cases") +
+    labs(x = "Simulation Time", y = "Active Infected") +
     theme_bw()
   ggsave(
     filename = paste0("carrying_three/", scenario, "_incidence.jpg"),
