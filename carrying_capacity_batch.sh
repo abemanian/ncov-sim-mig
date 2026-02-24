@@ -2,8 +2,26 @@
 # Use ncov-sim as the environment (needs python 3.12)
 # 2e-6 is approximate sites per day evolution rate for SARS-CoV-2
 
-# Scenario to run (basic, seasonal, isolation, immunization)
-SCENARIO="basic"
+# Parse command-line arguments
+SCENARIO="${1:-basic}"
+
+# Show usage if help is requested
+if [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
+    echo "Usage: $0 [SCENARIO]"
+    echo ""
+    echo "SCENARIO: Simulation scenario to run (default: basic)"
+    echo "  Options:"
+    echo "    basic              - Basic transmission model"
+    echo "    seasonal_cyclic    - Seasonal transmission with cyclical force of infection"
+    echo "    seasonal_threshold - Seasonal transmission where force of infection is decreased for a specific time window"
+    echo "    isolated           - Model with isolation interventions (deme A locked down at given time point)"
+    echo "    immune             - Model with immunization interventions (80% of deme A immunized at given time point"
+    exit 0
+fi
+
+# Activate conda environment
+eval "$(conda shell.bash hook)"
+conda activate ncov-sim
 
 # Remove any previous RR TSV and simulation files
 rm -f carrying_three/rr.tsv
@@ -37,7 +55,7 @@ for((i = 1; i <= 50; i ++)); do
         --scale 0.000002
 
     # Use PairSNP to just get the identical sequences
-    pairsnp -s -t 6 -d 0 carrying_three/sars-cov-2_simulation_output.fasta > carrying_three/idseq.tsv
+    pairsnp -s -t 16 -d 0 carrying_three/sars-cov-2_simulation_output.fasta > carrying_three/idseq.tsv
 
     # Analyze parent-child transmission pair sequence identity
     Rscript transmission_pair_analysis.R \
