@@ -23,13 +23,29 @@ scenario <- args$scenario
 DATA_DIR <- "results/two_cluster"
 
 # Display name for plot titles; `scenario` itself stays as-is for filenames
-scenario_label <- function(s) if (s == "none") "No Shutdown" else s
+SCENARIO_LABELS <- c(
+  none = "No Shutdown",
+  homogeneous = "Uniform Recovery",
+  heterogeneous = "Staggered Recovery"
+)
+scenario_label <- function(s) unname(coalesce(SCENARIO_LABELS[s], s))
 out_file <- function(name) file.path(DATA_DIR, paste0(scenario, "_", name))
 
 DEME_ORDER <- c("A", "B", "C", "X", "Y", "Z")
 PHASE_STARTS <- c(0, 100, 150, 200, 250)
 PHASE_MARKS <- PHASE_STARTS[-1]
 PHASE_NAMES <- c("burn-in", "shutdown", "initial", "moderate", "full")
+
+# Time range drawn in the sliding-window figures. The left edge is the baseline
+# window's centre -- everything earlier is the seeding period, which is dense in
+# identical sequences for reasons unrelated to the intervention. The right edge
+# stops short of MAX_TIME (350): the simulation ends abruptly, so hosts infected
+# near the end have their onward transmission truncated, which depresses nRR in
+# the final windows as an artefact of the stop rather than of connectivity.
+# Filtering is applied per plot, never to the baseline, which stays independent
+# of what the figures happen to display.
+PLOT_TIME_MIN <- 90
+PLOT_TIME_MAX <- 300
 
 # Label each unordered deme pair by whether it crosses the A-X bridge
 pair_kind <- function(x, y) {
@@ -39,8 +55,11 @@ pair_kind <- function(x, y) {
 }
 
 add_marks <- function(p) {
+  marks <- PHASE_MARKS[
+    PHASE_MARKS >= PLOT_TIME_MIN & PHASE_MARKS <= PLOT_TIME_MAX
+  ]
   p + geom_vline(
-    xintercept = PHASE_MARKS, linetype = "dashed",
+    xintercept = marks, linetype = "dashed",
     color = "grey30", linewidth = 0.4
   )
 }
@@ -81,7 +100,38 @@ log_limits <- function(x, lower_q = 0.01, pad = 1.6) {
   c(unname(quantile(x, lower_q)) / pad, max(x) * pad)
 }
 
-NRR_SLIDING_LIM <- log_limits(pooled_column("rr_sliding.tsv", "nRR"))
+# Recovery ratios are exactly 0 whenever a phase holds no identical pairs for a
+# pair of demes -- a real result, not missing data, and the one a log axis cannot
+# draw. A pseudo-log axis is log-like above sigma and linear through 0, so those
+# zeros land on the axis instead of being silently dropped. sigma sits just below
+# the smallest non-zero ratio observed (~0.011) so it does not compress real data.
+PSEUDO_SIGMA <- 0.005
+RECOVERY_BREAKS <- c(0, 0.01, 0.03, 0.1, 0.3, 1, 3)
+
+recovery_y_scale <- function() {
+  scale_y_continuous(
+    transform = scales::transform_pseudo_log(sigma = PSEUDO_SIGMA, base = 10),
+    breaks = RECOVERY_BREAKS,
+    labels = format(RECOVERY_BREAKS, trim = TRUE, drop0trailing = TRUE)
+  )
+}
+
+# Pooled over the plotted window only; including the censored tail would stretch
+# the shared axis to accommodate values the figures never show.
+pooled_sliding_nrr <- function() {
+  vals <- map(ALL_SCENARIOS, function(s) {
+    f <- file.path(DATA_DIR, paste0(s, "_rr_sliding.tsv"))
+    if (!file.exists(f)) {
+      return(numeric(0))
+    }
+    read_tsv(f, show_col_types = FALSE) %>%
+      filter(between(tpoint, PLOT_TIME_MIN, PLOT_TIME_MAX)) %>%
+      pull(nRR)
+  })
+  unlist(vals, use.names = FALSE)
+}
+
+NRR_SLIDING_LIM <- log_limits(pooled_sliding_nrr())
 RECOVERY_LIM <- NULL
 RR_CLUSTER_LIM <- log_limits(pooled_column("rr_cluster_phase.tsv", "RR"))
 RR_FILL_LIM <- log_limits(pooled_column("rr.tsv", "RR"), lower_q = 0.02, pad = 1.0)
@@ -97,7 +147,10 @@ rr_sliding <- read_tsv(out_file("rr_sliding.tsv"), show_col_types = FALSE) %>%
   mutate(kind = pair_kind(deme_X, deme_Y)) %>%
   filter(kind != "self")
 
-p <- ggplot(rr_sliding, aes(x = tpoint, y = nRR, color = kind))
+rr_sliding_win <- rr_sliding %>%
+  filter(between(tpoint, PLOT_TIME_MIN, PLOT_TIME_MAX))
+
+p <- ggplot(rr_sliding_win, aes(x = tpoint, y = nRR, color = kind))
 p <- add_marks(p) +
   geom_smooth(se = TRUE, method = "loess", formula = y ~ x, span = 0.3) +
   geom_hline(yintercept = 1, linetype = "dotted") +
@@ -114,7 +167,7 @@ ggsave(out_file("nrr_intra_vs_inter.jpg"), plot = p, width = 10, height = 6, dpi
 
 # Per-pair detail
 p <- ggplot(
-  rr_sliding %>% mutate(pair = paste0(deme_X, "-", deme_Y)),
+  rr_sliding_win %>% mutate(pair = paste0(deme_X, "-", deme_Y)),
   aes(x = tpoint, y = nRR, color = kind, group = pair)
 )
 p <- add_marks(p) +
@@ -141,34 +194,63 @@ rr_phase <- read_tsv(out_file("rr_phase.tsv"), show_col_types = FALSE) %>%
   mutate(kind = pair_kind(deme_X, deme_Y)) %>%
   filter(kind != "self")
 
-baseline <- rr_phase %>%
-  filter(phase == PHASE_NAMES[1]) %>%
+# Baseline is the sliding window centred on BASELINE_TPOINT, not the burn-in
+# phase. The ±20 half-width is the point: inter-cluster identical pairs are rare,
+# and any narrower window sends a large fraction of them to zero, which is both
+# unstable and biased (the pairs that vanish are the least-mixed ones). A window
+# bracketing the intervention start also avoids the early burn-in, when the
+# outbreak is still confined to the seed deme.
+BASELINE_TPOINT <- 90
+
+baseline <- rr_sliding %>%
+  filter(tpoint == BASELINE_TPOINT) %>%
   select(seed, deme_X, deme_Y, base = nRR)
 
+# A pair with no identical sequences in the baseline window yields base = 0 and a
+# non-finite ratio. Those rows are dropped, which silently shrinks the sample for
+# exactly the rarest pairs, so report how many were lost rather than letting it
+# pass unnoticed.
 recovery <- rr_phase %>%
   left_join(baseline, by = c("seed", "deme_X", "deme_Y")) %>%
-  mutate(ratio = nRR / base) %>%
+  mutate(ratio = nRR / base)
+
+dropped <- recovery %>%
+  filter(!is.finite(ratio)) %>%
+  count(kind, name = "n_dropped")
+if (nrow(dropped) > 0) {
+  message(
+    "Dropped rows with an empty baseline window: ",
+    paste0(dropped$kind, "=", dropped$n_dropped, collapse = ", "),
+    " (of ", nrow(recovery), " total)"
+  )
+}
+
+# Burn-in is excluded: the seeding period is intrinsically dense in identical
+# sequences (one introduction, no standing diversity), so it is not comparable to
+# the later phases and would sit high for reasons that have nothing to do with
+# the intervention.
+RECOVERY_PHASES <- PHASE_NAMES[PHASE_NAMES != "burn-in"]
+
+recovery <- recovery %>%
   filter(is.finite(ratio)) %>%
+  filter(phase %in% RECOVERY_PHASES) %>%
   group_by(seed, kind, phase) %>%
   summarize(ratio = median(ratio, na.rm = TRUE), .groups = "drop") %>%
-  mutate(phase = factor(phase, levels = PHASE_NAMES))
-
-recovery_lim <- log_limits(
-  c(recovery$ratio, pooled_column("recovery_by_phase.tsv", "ratio"))
-)
+  mutate(phase = factor(phase, levels = RECOVERY_PHASES))
 
 p <- ggplot(recovery, aes(x = phase, y = ratio, fill = kind)) +
   geom_boxplot(alpha = 0.75, outlier.size = 0.6) +
   geom_hline(yintercept = 1, linetype = "dashed") +
-  scale_y_log10() +
+  recovery_y_scale() +
   scale_fill_manual(values = c("Intra-cluster" = "#38c", "Inter-cluster" = "#e94")) +
   labs(
-    x = "Phase", y = "nRR relative to burn-in baseline (log scale)", fill = NULL,
+    x = "Phase", y = "nRR relative to baseline (pseudo-log scale)", fill = NULL,
     title = paste0("Recovery by phase (scenario: ", scenario_label(scenario), ")"),
-    subtitle = "1.0 = back to pre-shutdown level"
+    subtitle = paste0(
+      "1.0 = back to baseline (sliding window at t = ", BASELINE_TPOINT, ")"
+    )
   ) +
   theme_bw()
-p <- fix_y(p, recovery_lim)
 ggsave(out_file("recovery_by_phase.jpg"), plot = p, width = 10, height = 6, dpi = 192)
 
 write_tsv(recovery, out_file("recovery_by_phase.tsv"))

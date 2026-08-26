@@ -13,4 +13,7 @@ results/
 
 #Allow Wuhan reference fasta
 !data/reference/wuhan.fasta
+
+#Allow the movement-structure diagram (a model property, not a run output)
+!movement_network.pdf
 .Rproj.user

@@ -143,9 +143,44 @@ C1/C2 cluster matrix -- and on two time decompositions: one estimate per interve
 phase (pooling all pairs in the phase, which is far more stable than taking a median
 over narrow windows) and a 20-step sliding window every 5 steps.
 
+The `recovery_by_phase` plot does *not* use the burn-in phase as its baseline. It divides
+each pair's phase nRR by that pair's sliding-window nRR at `tpoint = 90` (the window
+[70, 110]), which is wide enough to stay stable for the sparse inter-cluster pairs. The
+narrower alternatives were tested and rejected: a strictly pre-intervention window loses
+too many inter-cluster pairs to emptiness, and a later-centred one is deflated by
+shutdown-era transmission, which pushes every recovery ratio above 1. Burn-in itself is
+dropped from the figure -- the seeding period is intrinsically dense in identical
+sequences and not comparable to the later phases -- so `*_recovery_by_phase.tsv` now holds
+four phases, not five.
+
+That figure is drawn on a pseudo-log axis (`PSEUDO_SIGMA = 0.005`). Ratios of exactly 0
+are common and meaningful for inter-cluster pairs under `heterogeneous`; `scale_y_log10()`
+drops them silently, which is what the pseudo-log axis exists to prevent. Do not switch it
+back to a plain log scale.
+
+The sliding-window figures (`nrr_by_pair`, `nrr_intra_vs_inter`) are drawn over
+`PLOT_TIME_MIN`..`PLOT_TIME_MAX` (90..300) only. The right edge matters: `MAX_TIME = 350`
+is a hard stop, and `calc_rr()` needs *both* members of a pair inside the window, so tips
+near the end lose the partners that would have completed their pairs and nRR falls for
+reasons that have nothing to do with connectivity. The filter is applied to the data
+before `geom_smooth()`, not via `xlim`/`coord_cartesian` -- cropping the view would leave
+the censored tail still pulling the loess fit down inside the visible range. These bounds
+are display-only constants and do not track `MAX_TIME` or `BASELINE_TPOINT`; change them by
+hand if either moves.
+
 ### Plotting Scripts
 
 - `scripts/<scenario>/*_plot.R` scripts generate summary visualizations after batch runs
+- `scripts/two_cluster/two_cluster_combined_plot.R` - stacks all three arms' recovery
+  panels into one 6x8 PDF. Run after every scenario has been plotted. Scenario display
+  names live in `SCENARIO_LABELS` (`none` -> "No Shutdown", `homogeneous` -> "Uniform
+  Recovery", `heterogeneous` -> "Staggered Recovery"); the same map is duplicated in
+  `two_cluster_plot.R`, so a rename must touch both.
+- `scripts/two_cluster/two_cluster_network_plot.R` - movement-structure diagram, written
+  to `movement_network.pdf` at the repository root rather than under `results/`, since it
+  is a property of the model rather than of any sweep. It re-declares `BASE_WEIGHTS`
+  because sourcing `two_cluster_sim.R` would run a simulation -- **if that matrix changes
+  in the sim, change it here too.**
 - `scripts/common/sim_analysis.R` - General purpose analysis utilities
 - `scripts/common/plot_pair_time.R` - Temporal analysis of sequence pairs
 
