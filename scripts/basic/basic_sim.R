@@ -88,9 +88,11 @@ ggraph(graph_sim, layout = "kk") +
   scale_color_viridis(name = "Infection Time",option="plasma") +
   theme_void()
 
-ggsave("basic_out/basic_sim.jpg",width=12,height=12,dpi=192)
+if (!dir.exists("results/basic")) dir.create("results/basic", recursive = TRUE)
+
+ggsave("results/basic/basic_sim.jpg",width=12,height=12,dpi=192)
 
 tree_sim <- getTransmissionTree(basic_sim)
 ggtree(tree_sim@phylo) + geom_tiplab() + theme_tree2()
-write.tree(tree_sim@phylo,"basic_out/basic.nwk")
-ggsave("basic_out/basic_tree.jpg",width=8,height=10,dpi=192)
+write.tree(tree_sim@phylo,"results/basic/basic.nwk")
+ggsave("results/basic/basic_tree.jpg",width=8,height=10,dpi=192)

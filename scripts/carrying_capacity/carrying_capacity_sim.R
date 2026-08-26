@@ -219,12 +219,12 @@ sim_summary <- summary(threebody_sim)$dynamics %>%
 data_sim <- getTableHosts(threebody_sim)
 
 # Ensure output directory exists
-if (!dir.exists("carrying_three")) dir.create("carrying_three")
+if (!dir.exists("results/carrying_capacity")) dir.create("results/carrying_capacity", recursive = TRUE)
 
 # Full transmission tree
 tree_sim <- getTransmissionTree(threebody_sim)
-write.tree(tree_sim@phylo, "carrying_three/tree.nwk")
-write_tsv(data_sim, "carrying_three/meta.tsv")
+write.tree(tree_sim@phylo, "results/carrying_capacity/tree.nwk")
+write_tsv(data_sim, "results/carrying_capacity/meta.tsv")
 
 
 # Plots
@@ -236,7 +236,7 @@ if (draw_plots) {
     labs(x = "Simulation Time", y = "Active Infected") +
     theme_bw()
   ggsave(
-    filename = paste0("carrying_three/", scenario, "_incidence.jpg"),
+    filename = paste0("results/carrying_capacity/", scenario, "_incidence.jpg"),
     dpi = 192,
     height = 5,
     width = 15,
@@ -251,7 +251,7 @@ if (draw_plots) {
     labs(x = "Time", y = "Seasonal Scaling") +
     theme_bw()
   ggsave(
-    filename = paste0("carrying_three/", scenario, "_seasonal_factor.jpg"),
+    filename = paste0("results/carrying_capacity/", scenario, "_seasonal_factor.jpg"),
     dpi = 192,
     height = 5,
     width = 15,
@@ -266,7 +266,7 @@ if (draw_plots) {
     labs(x = "Population Size", y = "Capacity Scaling") +
     theme_bw()
   ggsave(
-    filename = paste0("carrying_three/", scenario, "_capacity_factor.jpg"),
+    filename = paste0("results/carrying_capacity/", scenario, "_capacity_factor.jpg"),
     dpi = 192,
     height = 5,
     width = 15,
@@ -326,7 +326,7 @@ if (draw_plots) {
       legend.position = "bottom"
     )
   ggsave(
-    filename = paste0("carrying_three/", scenario, "_manual_layout.jpg"),
+    filename = paste0("results/carrying_capacity/", scenario, "_manual_layout.jpg"),
     dpi = 192,
     height = 8,
     width = 15,
@@ -352,7 +352,7 @@ if (draw_plots) {
     theme_minimal() +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
   ggsave(
-    filename = paste0("carrying_three/", scenario, "_transmission_heatmap.jpg"),
+    filename = paste0("results/carrying_capacity/", scenario, "_transmission_heatmap.jpg"),
     dpi = 192,
     height = 8,
     width = 15,
@@ -390,7 +390,7 @@ if (draw_plots) {
     scale_color_discrete(name = "Infection Deme") +
     theme_tree()
   ggsave(
-    filename = paste0("carrying_three/", scenario, "_phylodyn_tree.jpg"),
+    filename = paste0("results/carrying_capacity/", scenario, "_phylodyn_tree.jpg"),
     dpi = 192,
     height = 10,
     width = 20,

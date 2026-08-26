@@ -1,7 +1,7 @@
 library(tidyverse)
 
 # Load phase RR data and set phase order
-rr_phase <- read_tsv("shutdown_three/rr.tsv") %>%
+rr_phase <- read_tsv("results/shutdown_threebody/rr.tsv") %>%
   mutate(phase = factor(phase, 
                        levels = c("Pre-Lockdown", "During Lockdown", "Post-Lockdown"),
                        ordered = TRUE))
@@ -15,7 +15,7 @@ rr_boxplot <- ggplot(rr_phase, aes(x = deme_X, y = RR, fill = deme_Y)) +
   theme(legend.position = "bottom") +
   facet_wrap(vars(phase), ncol = 1)
 
-ggsave(filename = "shutdown_three/rr_boxplot.jpg",
+ggsave(filename = "results/shutdown_threebody/rr_boxplot.jpg",
   plot = rr_boxplot,
   dpi = 192,
   height = 12,
@@ -23,7 +23,7 @@ ggsave(filename = "shutdown_three/rr_boxplot.jpg",
   units = "in")
 
 # Load sliding window RR data
-rr_sliding <- read_tsv("shutdown_three/rr_sliding.tsv") %>%
+rr_sliding <- read_tsv("results/shutdown_threebody/rr_sliding.tsv") %>%
   mutate(seed = as.factor(seed))
 
 # RR over time plot
@@ -49,7 +49,7 @@ rr_scatter_smooth <- ggplot(rr_sliding,
   facet_wrap(vars(deme_X), ncol = 1) +
   scale_color_manual(values = c("A" = "#F8766D", "O" = "#00BFC4", "B" = "#7CAE00"))
 
-ggsave(filename = "shutdown_three/rr_scatter_smooth.jpg",
+ggsave(filename = "results/shutdown_threebody/rr_scatter_smooth.jpg",
   plot = rr_scatter_smooth,
   dpi = 192,
   height = 9,
@@ -81,7 +81,7 @@ nrr_scatter_smooth <- ggplot(rr_sliding_offdiag,
   coord_cartesian(ylim = c(0, 1)) +
   scale_color_manual(values = c("A" = "#F8766D", "O" = "#00BFC4", "B" = "#7CAE00"))
 
-ggsave(filename = "shutdown_three/nrr_scatter_smooth.jpg",
+ggsave(filename = "results/shutdown_threebody/nrr_scatter_smooth.jpg",
   plot = nrr_scatter_smooth,
   dpi = 192,
   height = 9,

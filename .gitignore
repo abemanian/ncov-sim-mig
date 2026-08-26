@@ -8,6 +8,9 @@
 *.jpg
 *.pdf
 
+#Simulation outputs
+results/
+
 #Allow Wuhan reference fasta
-!wuhan.fasta
+!data/reference/wuhan.fasta
 .Rproj.user

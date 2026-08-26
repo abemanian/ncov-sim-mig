@@ -13,7 +13,7 @@ args <- collect_args()
 scenario <- args$scenario
 
 # Load RR data
-rr_total <- read_tsv("carrying_three/rr.tsv")
+rr_total <- read_tsv("results/carrying_capacity/rr.tsv")
 
 # Boxplot of RR
 rr_boxplot <- ggplot(rr_total, aes(x = deme_X, y = RR, fill = deme_Y)) +
@@ -25,7 +25,7 @@ rr_boxplot <- ggplot(rr_total, aes(x = deme_X, y = RR, fill = deme_Y)) +
   theme(legend.position = "bottom")
 
 ggsave(
-  filename = paste0("carrying_three/", scenario, "_rr_boxplot.jpg"),
+  filename = paste0("results/carrying_capacity/", scenario, "_rr_boxplot.jpg"),
   plot = rr_boxplot,
   dpi = 192,
   height = 7,
@@ -34,7 +34,7 @@ ggsave(
 )
 
 # Load sliding window RR data
-rr_sliding <- read_tsv("carrying_three/rr_sliding.tsv") %>%
+rr_sliding <- read_tsv("results/carrying_capacity/rr_sliding.tsv") %>%
   mutate(seed = as.factor(seed))
 
 # RR over time plot
@@ -70,7 +70,7 @@ rr_scatter_smooth <- ggplot(
   ))
 
 ggsave(
-  filename = paste0("carrying_three/", scenario, "_rr_scatter_smooth.jpg"),
+  filename = paste0("results/carrying_capacity/", scenario, "_rr_scatter_smooth.jpg"),
   plot = rr_scatter_smooth,
   dpi = 192,
   height = 9,
@@ -111,7 +111,7 @@ nrr_scatter_smooth <- ggplot(
   ))
 
 ggsave(
-  filename = paste0("carrying_three/", scenario, "_nrr_scatter_smooth.jpg"),
+  filename = paste0("results/carrying_capacity/", scenario, "_nrr_scatter_smooth.jpg"),
   plot = nrr_scatter_smooth,
   dpi = 192,
   height = 9,
@@ -120,7 +120,7 @@ ggsave(
 )
 
 # Load transmission pair analysis results
-transmission_pairs <- read_tsv("carrying_three/transmission_pairs.tsv")
+transmission_pairs <- read_tsv("results/carrying_capacity/transmission_pairs.tsv")
 
 # Summary statistics
 cat("\n=== Transmission Pair Sequence Identity Summary ===\n")
@@ -153,7 +153,7 @@ transmission_hist <- ggplot(transmission_pairs, aes(x = proportion)) +
   theme(plot.title = element_text(hjust = 0.5))
 
 ggsave(
-  filename = paste0("carrying_three/", scenario, "_transmission_pairs_hist.jpg"),
+  filename = paste0("results/carrying_capacity/", scenario, "_transmission_pairs_hist.jpg"),
   plot = transmission_hist,
   dpi = 192,
   height = 6,
@@ -176,7 +176,7 @@ transmission_timeseries <- ggplot(transmission_pairs, aes(x = seed, y = proporti
   scale_y_continuous(limits = c(0, 1))
 
 ggsave(
-  filename = paste0("carrying_three/", scenario, "_transmission_pairs_timeseries.jpg"),
+  filename = paste0("results/carrying_capacity/", scenario, "_transmission_pairs_timeseries.jpg"),
   plot = transmission_timeseries,
   dpi = 192,
   height = 6,

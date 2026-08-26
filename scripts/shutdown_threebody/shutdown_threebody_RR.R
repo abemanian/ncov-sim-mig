@@ -5,8 +5,8 @@ options(tidyverse.quiet = TRUE)
 library(tidyverse, quietly = TRUE)
 library(argparse, quietly = TRUE)
 
-source("calc_rr.R")
-source("plot_pair_time.R")
+source("scripts/common/calc_rr.R")
+source("scripts/common/plot_pair_time.R")
 
 collect_args <- function() {
   parser <- ArgumentParser()
@@ -17,8 +17,8 @@ collect_args <- function() {
 args <- collect_args()
 sim_seed <- args$seed
 
-shutdown_meta <- read_tsv("./shutdown_three/meta.tsv", show_col_types = FALSE)
-shutdown_pairs <- read_tsv("./shutdown_three/idseq.tsv")
+shutdown_meta <- read_tsv("./results/shutdown_threebody/meta.tsv", show_col_types = FALSE)
+shutdown_pairs <- read_tsv("./results/shutdown_threebody/idseq.tsv")
 colnames(shutdown_pairs) <- c("X", "Y", "Dist")
 shutdown_pairs <- filter(shutdown_pairs, X %in% shutdown_meta$hosts.ID) %>%
   filter(Y %in% shutdown_meta$hosts.ID)
@@ -50,7 +50,7 @@ rr_phases <- bind_rows(rr_pre, rr_during, rr_post) %>%
 
 
 # Write phase RR to TSV (append if file exists)
-rr_phase_fn <- "./shutdown_three/rr.tsv"
+rr_phase_fn <- "./results/shutdown_threebody/rr.tsv"
 if (file.exists(rr_phase_fn)) {
   write_tsv(rr_phases, file = rr_phase_fn, append = TRUE)
 } else {
@@ -73,7 +73,7 @@ rr_sliding <- map_dfr(nrr_tpoints, ~ calc_rr(shutdown_meta, shutdown_pairs,
 
 
 # Write sliding window RR/nRR to TSV (append if file exists)
-rr_sliding_fn <- "./shutdown_three/rr_sliding.tsv"
+rr_sliding_fn <- "./results/shutdown_threebody/rr_sliding.tsv"
 if (file.exists(rr_sliding_fn)) {
   write_tsv(rr_sliding, file = rr_sliding_fn, append = TRUE)
 } else {

@@ -1,31 +1,12 @@
 library(tidyverse)
 
-source("calc_rr.R")
-source("plot_pair_time.R")
+source("scripts/common/calc_rr.R")
+source("scripts/common/plot_pair_time.R")
 
 
-static_meta <- read_tsv("./static_three/static_threebody_meta.tsv") %>% 
+shutdown_meta <- read_tsv("./results/shutdown_threebody/meta.tsv") %>% 
   group_by(inf.in) 
-static_pairs <- read_tsv("./static_three/idseq.tsv")
-
-colnames(static_pairs) <- c("X","Y","Dist")
-static_pairs <- filter(static_pairs,X %in% static_meta$hosts.ID) %>%
-  filter(Y %in% static_meta$hosts.ID)
-
-plot_pair_time(static_meta,static_pairs)
-static_rr <- calc_rr(static_meta,static_pairs)
-
-ggplot(static_rr) +
-  geom_tile(aes(x=deme_X,y=deme_Y,fill=RR)) +
-  theme_minimal() +
-  scale_fill_gradient2(high="#e94",low="#38c",
-                       transform = "log10",midpoint=1) +
-  labs(x = "Deme", y = "Deme")
-
-
-shutdown_meta <- read_tsv("./shutdown_three/meta.tsv") %>% 
-  group_by(inf.in) 
-shutdown_pairs <- read_tsv("./shutdown_three/idseq.tsv")
+shutdown_pairs <- read_tsv("./results/shutdown_threebody/idseq.tsv")
 colnames(shutdown_pairs) <- c("X","Y","Dist")
 shutdown_pairs <- filter(shutdown_pairs,X %in% shutdown_meta$hosts.ID) %>%
   filter(Y %in% shutdown_meta$hosts.ID)

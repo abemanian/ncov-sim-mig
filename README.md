@@ -51,7 +51,7 @@ Each simulation was initialized with a single infected host in deme O and run fo
 
 ### Sequence Evolution and SNP Analysis
 
-For each simulation replicate, the resulting transmission tree (Newick format) was passed to **phastSim** to simulate nucleotide sequence evolution under a molecular clock, using the SARS-CoV-2 Wuhan-Hu-1 reference genome (`wuhan.fasta`) as a starting sequence. A fixed substitution rate of `2 × 10⁻⁶` substitutions per site per day (calibrated for SARS-CoV-2) was applied via the `--scale 0.000002` flag, and the phastSim seed was held constant at 17 across all replicates to isolate stochasticity to the epidemiological component.
+For each simulation replicate, the resulting transmission tree (Newick format) was passed to **phastSim** to simulate nucleotide sequence evolution under a molecular clock, using the SARS-CoV-2 Wuhan-Hu-1 reference genome (`data/reference/wuhan.fasta`) as a starting sequence. A fixed substitution rate of `2 × 10⁻⁶` substitutions per site per day (calibrated for SARS-CoV-2) was applied via the `--scale 0.000002` flag, and the phastSim seed was held constant at 17 across all replicates to isolate stochasticity to the epidemiological component.
 
 Pairwise genomic distances between all sampled sequences were computed using **pairsnp**. Only sequence pairs with zero SNP distance (i.e., genetically identical pairs, `-d 0`) were retained, as these are the most informative signal for recent shared transmission history.
 
@@ -76,3 +76,33 @@ nRR is thus normalized by the arithmetic mean of the two relevant within-deme RR
 ### Software
 
 All simulations were implemented in **R** (≥4.0) using the following packages: `nosoi` (individual-based transmission simulation), `ape` and `treeio`/`ggtree` (phylogenetic tree handling and visualization), `tidyverse` (data manipulation), `igraph`/`ggraph` (transmission network plotting), and `argparse` (command-line argument parsing). Sequence evolution was simulated with **phastSim** and pairwise SNP distances were calculated with **pairsnp**. Analysis scripts were executed in a reproducible `conda` environment (`ncov-sim`) using Python 3.12.
+
+## Repository Layout
+
+All scripts are written to be run **from the repository root**, e.g. `Rscript scripts/shutdown_threebody/shutdown_threebody_sim.R --seed 42`.
+
+```
+scripts/
+  common/               # shared helpers: calc_rr.R, plot_pair_time.R,
+                        # transmission_pair_analysis.R, sim_analysis.R, install_packages.R
+  basic/                # single-population baseline scenario
+  shutdown_threebody/   # three-deme model with intervention / movement shutdown
+  carrying_capacity/    # density-dependent transmission (+ seasonality, isolation, immunization)
+data/
+  reference/            # wuhan.fasta reference genome (tracked)
+  basic/                # scenario outputs: trees, metadata, sequences, RR tables, plots
+  shutdown_threebody/
+  carrying_capacity/
+```
+
+Scenario folders follow a common naming convention, `<scenario>_*` (not every scenario has all five):
+
+| Suffix | Purpose |
+|--------|---------|
+| `_sim.R`   | nosoi simulation; writes tree + metadata to `results/<scenario>/` |
+| `_seq.sh`  | single-replicate phastSim + pairsnp run |
+| `_RR.R`    | relative risk / nRR calculation, appends to `results/<scenario>/rr.tsv` |
+| `_plot.R`  | summary plots across replicates |
+| `_batch.sh`| full sweep: sim → phastSim → pairsnp → RR → plots |
+
+Simulation outputs under `results/` are gitignored; the directories are recreated by the scripts as needed. `data/` holds only tracked static inputs.

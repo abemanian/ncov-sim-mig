@@ -208,7 +208,7 @@ if (draw_plots) {
     theme_bw()
 
   ggsave(
-    filename = "shutdown_three/incidence.jpg",
+    filename = "results/shutdown_threebody/incidence.jpg",
     dpi = 192,
     height = 5,
     width = 15,
@@ -227,7 +227,7 @@ if (draw_plots) {
     theme_void()
 
   ggsave(
-    filename = "shutdown_three/transmission_tree.jpg",
+    filename = "results/shutdown_threebody/transmission_tree.jpg",
     dpi = 192,
     height = 12,
     width = 12,
@@ -275,7 +275,7 @@ if (draw_plots) {
     geom_tippoint(aes(color = inf_in), size = 0.5, alpha = 0.6) +
     theme_tree2() +
     labs(color = "Infection Deme")
-  ggsave(filename = "shutdown_three/phylo_tree.jpg",
+  ggsave(filename = "results/shutdown_threebody/phylo_tree.jpg",
     dpi = 192,
     height = 7,
     width = 15,
@@ -285,8 +285,8 @@ if (draw_plots) {
 
 
 # Ensure output directory exists
-if (!dir.exists("shutdown_three")) dir.create("shutdown_three")
+if (!dir.exists("results/shutdown_threebody")) dir.create("results/shutdown_threebody", recursive = TRUE)
 
 tree_sim <- getTransmissionTree(threebody_sim)
-write.tree(tree_sim@phylo, "shutdown_three/tree.nwk")
-write_tsv(data_sim, "shutdown_three/meta.tsv")
+write.tree(tree_sim@phylo, "results/shutdown_threebody/tree.nwk")
+write_tsv(data_sim, "results/shutdown_threebody/meta.tsv")
