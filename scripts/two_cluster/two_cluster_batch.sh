@@ -27,7 +27,7 @@ set -u
 # Clear per-scenario accumulators. Files are scenario-tagged in their contents,
 # so a fresh sweep of one scenario should not inherit another's rows.
 for f in rr rr_cluster rr_phase rr_cluster_phase rr_sliding rr_cluster_sliding \
-         schedules; do
+         schedules rt; do
     rm -f "results/two_cluster/${SCENARIO}_${f}.tsv"
 done
 rm -f "results/two_cluster/${SCENARIO}_transmission_pairs.tsv"
@@ -76,6 +76,7 @@ for((i = 1; i <= N_SEEDS; i ++)); do
         --output results/two_cluster/${SCENARIO}_transmission_pairs.tsv
 
     Rscript scripts/two_cluster/two_cluster_RR.R --seed $i --scenario $SCENARIO
+    Rscript scripts/two_cluster/two_cluster_reproduction.R --seed $i --scenario $SCENARIO
 
     rm -f results/two_cluster/tree.nwk results/two_cluster/idseq.tsv \
           results/two_cluster/meta.tsv results/two_cluster/schedule.tsv \

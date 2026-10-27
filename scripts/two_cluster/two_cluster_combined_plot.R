@@ -77,3 +77,61 @@ p <- ggplot(recovery, aes(x = phase, y = ratio, fill = kind)) +
 out <- file.path(DATA_DIR, "recovery_by_phase_combined.pdf")
 ggsave(out, plot = p, width = 6, height = 8, units = "in", device = cairo_pdf)
 message("Wrote ", out)
+
+# ---------------------------------------------------------------------------
+# Effective reproduction number
+# ---------------------------------------------------------------------------
+# Reads the per-seed accumulators written by two_cluster_reproduction.R directly.
+# PLOT_TIME_MAX and RT_SPAN mirror two_cluster_plot.R: the tail past 300 is
+# depressed by the MAX_TIME stop, and is dropped before fitting, not just hidden.
+PLOT_TIME_MAX <- 300
+PHASE_MARKS <- c(100, 150, 200, 250)
+RT_SPAN <- 0.2
+# t < RT_SEEDING_END is shaded as the seeding period; its spike runs off the top
+# of the fixed axis, which clips the view without dropping data from the fit.
+RT_SEEDING_END <- 50
+RT_LIM <- c(0, 3)
+
+rt <- imap_dfr(SCENARIO_LABELS, function(label, scen) {
+  f <- file.path(DATA_DIR, paste0(scen, "_rt.tsv"))
+  if (!file.exists(f)) {
+    warning("Missing ", f, "; skipping ", scen)
+    return(NULL)
+  }
+  read_tsv(f, show_col_types = FALSE) %>% mutate(scenario = scen)
+})
+
+if (nrow(rt) == 0) {
+  message("No R(t) tables found under ", DATA_DIR, "; skipping R(t) figure")
+} else {
+  rt <- rt %>%
+    filter(tpoint <= PLOT_TIME_MAX, is.finite(Rt)) %>%
+    mutate(panel = factor(
+      unname(SCENARIO_LABELS[scenario]),
+      levels = unname(SCENARIO_LABELS)
+    ))
+
+  p <- ggplot(rt, aes(x = tpoint, y = Rt)) +
+    annotate("rect", xmin = 0, xmax = RT_SEEDING_END, ymin = -Inf, ymax = Inf,
+             fill = "#e94", alpha = 0.15) +
+    annotate("text", x = RT_SEEDING_END / 2, y = RT_LIM[1] + 0.15,
+             label = "Seeding", color = "#b65f1c", size = 2.5) +
+    geom_vline(xintercept = PHASE_MARKS, linetype = "dashed",
+               color = "grey40", linewidth = 0.3) +
+    geom_hline(yintercept = 1, linetype = "dotted", color = "grey40") +
+    geom_line(aes(group = seed), color = "grey50", alpha = 0.3, linewidth = 0.25) +
+    geom_smooth(se = TRUE, method = "loess", formula = y ~ x, span = RT_SPAN,
+                color = "#38c", fill = "#38c", linewidth = 0.6) +
+    facet_wrap(vars(panel), ncol = 1) +
+    coord_cartesian(ylim = RT_LIM) +
+    labs(x = "Simulation Time (days)", y = expression(R[t])) +
+    theme_bw(base_size = 9) +
+    theme(
+      strip.background = element_rect(fill = "grey92", color = NA),
+      strip.text = element_text(face = "bold")
+    )
+
+  out <- file.path(DATA_DIR, "rt_combined.pdf")
+  ggsave(out, plot = p, width = 6, height = 8, units = "in", device = cairo_pdf)
+  message("Wrote ", out)
+}

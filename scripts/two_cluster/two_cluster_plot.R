@@ -301,3 +301,54 @@ read_tsv(out_file("rr.tsv"), show_col_types = FALSE) %>%
   ) +
   theme_minimal()
 ggsave(out_file("rr_heatmap.jpg"), width = 7, height = 6, dpi = 192)
+
+# ---------------------------------------------------------------------------
+# Effective reproduction number
+# ---------------------------------------------------------------------------
+# One trace per seed, with a loess fit pooled over all of them. Drawn from t = 0,
+# with t < RT_SEEDING_END shaded as the seeding period: R(t) spikes to ~10 there
+# and runs off the top of the fixed axis, which is expected rather than a signal.
+# Named "Seeding" rather than "burn-in" because the burn-in *phase* in
+# PHASE_NAMES is the longer t < 100. Note the spike also widens the loess
+# confidence band across the whole series, since loess uses one residual scale.
+# The right edge is cropped at PLOT_TIME_MAX, because hosts infected near
+# MAX_TIME lose onward infections to the stop and R(t) falls as an artefact. As
+# with the nRR figures, that crop is applied to the data so the censored tail
+# cannot pull the loess fit down inside the visible range.
+RT_SPAN <- 0.2
+RT_SEEDING_END <- 50
+# Fixed rather than pooled so all three arms (and the combined figure) share one
+# axis; coord_cartesian() clips the view without dropping data from the fit.
+# Mirrored, with RT_SEEDING_END, in two_cluster_combined_plot.R.
+RT_LIM <- c(0, 3)
+
+rt_file <- out_file("rt.tsv")
+if (file.exists(rt_file)) {
+  rt <- read_tsv(rt_file, show_col_types = FALSE) %>%
+    filter(tpoint <= PLOT_TIME_MAX, is.finite(Rt))
+
+  marks <- PHASE_MARKS[PHASE_MARKS <= PLOT_TIME_MAX]
+  p <- ggplot(rt, aes(x = tpoint, y = Rt)) +
+    annotate("rect", xmin = 0, xmax = RT_SEEDING_END, ymin = -Inf, ymax = Inf,
+             fill = "#e94", alpha = 0.15) +
+    annotate("text", x = RT_SEEDING_END / 2, y = RT_LIM[1] + 0.12,
+             label = "Seeding", color = "#b65f1c", size = 3.5) +
+    geom_vline(xintercept = marks, linetype = "dashed", color = "grey30", linewidth = 0.4) +
+    geom_hline(yintercept = 1, linetype = "dotted") +
+    geom_line(aes(group = seed), color = "grey50", alpha = 0.35, linewidth = 0.3) +
+    geom_smooth(se = TRUE, method = "loess", formula = y ~ x, span = RT_SPAN,
+                color = "#38c", fill = "#38c") +
+    coord_cartesian(ylim = RT_LIM) +
+    labs(
+      x = "Simulation Time (days)", y = expression(R[t]),
+      title = paste0("Effective reproduction number (scenario: ", scenario_label(scenario), ")"),
+      subtitle = paste0(
+        "Mean offspring of hosts infected in a ", rt$window[1],
+        "-day window; one line per seed"
+      )
+    ) +
+    theme_bw()
+  ggsave(out_file("rt.jpg"), plot = p, width = 10, height = 6, dpi = 192)
+} else {
+  message("No ", rt_file, "; skipping R(t) plot (run two_cluster_reproduction.R)")
+}

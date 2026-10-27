@@ -172,10 +172,23 @@ hand if either moves.
 
 - `scripts/<scenario>/*_plot.R` scripts generate summary visualizations after batch runs
 - `scripts/two_cluster/two_cluster_combined_plot.R` - stacks all three arms' recovery
-  panels into one 6x8 PDF. Run after every scenario has been plotted. Scenario display
+  panels into one 6x8 PDF (`recovery_by_phase_combined.pdf`), and likewise the R(t)
+  panels (`rt_combined.pdf`). Run after every scenario has been plotted. Scenario display
   names live in `SCENARIO_LABELS` (`none` -> "No Shutdown", `homogeneous` -> "Uniform
   Recovery", `heterogeneous` -> "Staggered Recovery"); the same map is duplicated in
-  `two_cluster_plot.R`, so a rename must touch both.
+  `two_cluster_plot.R`, so a rename must touch both. `PLOT_TIME_MAX`, `RT_SPAN`, `RT_SEEDING_END`
+  (50) and the fixed R(t) axis `RT_LIM` (0..3) are also duplicated between the two
+  scripts. R(t) figures start at t = 0 with t < 50 shaded light orange as "Seeding" (not
+  "burn-in", which names the t < 100 phase). The seeding spike (R ~ 10) runs off the top
+  of the axis via `coord_cartesian()` but stays in the loess fit, which spans the full
+  range by choice -- this widens the confidence band across the whole series.
+- `scripts/two_cluster/two_cluster_reproduction.R` - per-seed effective reproduction
+  number, run by the batch after `_RR.R` (same `--seed` / `--scenario` args). R(t) is the
+  mean offspring count of hosts infected in a centred `RT_WINDOW`-day window (7), taken
+  from the full `meta.tsv`, so it is independent of subsampling. Hosts with zero
+  offspring must be counted -- tallying `inf.by` alone drops them and inflates R(t).
+  Appends to `<scenario>_rt.tsv`; the tail near `MAX_TIME` is censored low, so plots crop
+  at `PLOT_TIME_MAX`.
 - `scripts/two_cluster/two_cluster_network_plot.R` - movement-structure diagram, written
   to `movement_network.pdf` at the repository root rather than under `results/`, since it
   is a property of the model rather than of any sweep. It re-declares `BASE_WEIGHTS`
