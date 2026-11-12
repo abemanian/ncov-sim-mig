@@ -1,7 +1,7 @@
 #! /bin/bash
 # Use ncov-sim as the environment (needs python 3.12)
 # Single-replicate sequence evolution for the two-cluster simulation
-SUBSAMPLE_N="${1:-8000}"
+SUBSAMPLE_N="${1:-50000}"
 
 phastSim \
     --seed 17 \

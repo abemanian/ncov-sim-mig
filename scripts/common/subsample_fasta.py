@@ -16,6 +16,12 @@ cannot fill redistributed to the others. Sampling stays uniform *within* each
 bin, so the deme composition of pairs inside any one time window is still
 unbiased -- which is what RR is computed on. What changes is that early windows
 get far more tips than their share of incidence would give them.
+
+Passing --ids-out without --input selects hosts straight from --meta and writes
+their IDs, one per line, using the same stratified allocation. That lets a
+transmission tree be pruned to the sample *before* sequence simulation (see
+scripts/common/prune_tree.R), so phastSim never writes a full-outbreak FASTA:
+at ~30 kb per tip, a 250k-host outbreak would otherwise be a ~7.5 GB file.
 """
 
 import argparse
@@ -27,8 +33,12 @@ from collections import defaultdict
 
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--input", required=True, help="Input FASTA")
-    p.add_argument("--output", required=True, help="Output FASTA")
+    p.add_argument("--input", help="Input FASTA (omit with --ids-out)")
+    p.add_argument("--output", help="Output FASTA (omit with --ids-out)")
+    p.add_argument(
+        "--ids-out",
+        help="Select from --meta alone and write the chosen host IDs here",
+    )
     p.add_argument("--n", type=int, required=True, help="Number of sequences to keep")
     p.add_argument("--seed", type=int, default=17, help="RNG seed")
     p.add_argument(
@@ -114,9 +124,39 @@ def allocate(counts, budget):
     return quota
 
 
+def select_ids(meta_path, bin_width, n, rng):
+    """Stratified selection of host IDs from meta alone, no FASTA needed."""
+    bins = load_bins(meta_path, bin_width)
+    by_bin = defaultdict(list)
+    for host, b in bins.items():
+        by_bin[b].append(host)
+    quota = allocate({b: len(h) for b, h in by_bin.items()}, n)
+    kept = []
+    for b in sorted(by_bin):
+        k = quota.get(b, 0)
+        if k:
+            kept.extend(rng.sample(sorted(by_bin[b]), k))
+    return kept, len(by_bin)
+
+
 def main():
     args = parse_args()
     rng = random.Random(args.seed)
+
+    if args.ids_out:
+        if not args.meta:
+            raise SystemExit("subsample_fasta: --ids-out requires --meta")
+        kept, n_bins = select_ids(args.meta, args.bin_width, args.n, rng)
+        with open(args.ids_out, "w") as out:
+            out.writelines(h + "\n" for h in kept)
+        print(
+            f"subsample_fasta: selected {len(kept)} host IDs (stratified over "
+            f"{n_bins} bins of width {args.bin_width}, seed {args.seed})",
+            file=sys.stderr,
+        )
+        return
+    if not (args.input and args.output):
+        raise SystemExit("subsample_fasta: --input and --output are required")
 
     bins = load_bins(args.meta, args.bin_width) if args.meta else None
 

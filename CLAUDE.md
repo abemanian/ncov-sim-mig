@@ -20,12 +20,16 @@ conda activate ncov-sim
 Rscript scripts/common/install_packages.R
 ```
 
-Required packages include: nosoi, tidyverse, viridis, igraph, ggraph, ape, tidytree, argparse, treeio (Bioconductor), ggtree (Bioconductor)
+Required packages include: nosoi, tidyverse, viridis, igraph, ggraph, ape, tidytree, argparse, patchwork, treeio (Bioconductor), ggtree (Bioconductor)
 
 ## Repository Layout
 
 Scripts live under `scripts/`, one subfolder per scenario plus a shared `common/`.
-Simulation *outputs* live under `results/`, one subfolder per scenario. `data/` holds
+Simulation *outputs* (data tables, logs) live under `results/`, one subfolder per scenario.
+Figures live under `figs/`: `figs/pdf/` holds the main combined figures and the two movement
+design figures, `figs/jpg/` the per-arm diagnostic JPGs (`<arm>_*.jpg`, from `_sim.R --draw`
+and `_plot.R`). Everything in `figs/pdf/` is tracked in git; `figs/jpg/` is ignored. Rerunning
+`two_cluster_combined_plot.R` therefore changes tracked files. `data/` holds
 only static inputs -- currently `data/reference/` with the Wuhan-Hu-1 reference genome.
 
 **All scripts assume the repository root as the working directory.** Paths inside the
@@ -38,15 +42,16 @@ the scenario folder.
 ### Core Simulation Types
 
 All simulations use the `nosoi` package to model individual-based transmission
-dynamics. Apart from `basic_sim`, each places hosts in spatial demes connected by a
-movement matrix -- three demes (A, O, B) in the threebody models, six in `two_cluster`.
+dynamics. `two_cluster` places hosts in four spatial demes connected by a movement
+matrix; `basic_sim` has no spatial structure. (The `shutdown_threebody` and
+`carrying_capacity` models were removed on 2026-11-12; they remain in git history.)
 
 1. **scripts/basic/basic_sim.R** - Single-population baseline simulation with no spatial structure
-2. **scripts/shutdown_threebody/shutdown_threebody_sim.R** - Models intervention scenarios with time-varying contact rates and movement restrictions
-3. **scripts/carrying_capacity/carrying_capacity_sim.R** - Includes density-dependent transmission via logistic carrying capacity, plus optional seasonal forcing, isolation, and immunization scenarios
-4. **scripts/two_cluster/two_cluster_sim.R** - Six demes as two fully-connected
-   triangles (A-B-C and X-Y-Z) joined by the single A-X edge, which is the only
-   inter-cluster route. Asks whether an edge-specific travel policy is detectable in
+2. **scripts/two_cluster/two_cluster_sim.R** - Four demes as two pairs (A-B and
+   X-Y) joined by the single A-X edge, which is the only inter-cluster route (B and Y
+   reach the other cluster only through their gateway). It was six demes (A-B-C, X-Y-Z)
+   until 2026-11-11; with eight non-bridge across-region pairs most of them had no
+   identical sequences in the early phases, so it was cut to four. Asks whether an edge-specific travel policy is detectable in
    genetic data: a five-phase movement schedule (burn-in / shutdown / initial /
    moderate / full) is applied to every edge under `--scenario homogeneous`, while
    `heterogeneous` runs the same schedule but holds the A-X bridge a phase behind,
@@ -65,14 +70,14 @@ movement matrix -- three demes (A, O, B) in the threebody models, six in `two_cl
 
 All simulations define:
 - `p_Exit_fct`: Probability of host exit (death/recovery)
-- `n_Contact_fct`: Number of contacts per time step (Poisson, or negative binomial where overdispersion matters, as in `two_cluster`)
+- `n_Contact_fct`: Number of contacts per day (Poisson, or negative binomial where overdispersion matters, as in `two_cluster`)
 - `p_Trans_fct`: Transmission probability (often beta-distributed, may depend on incubation period and time)
 - `d_Incub`: Incubation period distribution (gamma)
 - `p_Move_fct`: Movement probability between demes (structured models only)
 
 Key simulation controls:
 - `MAX_OUTBREAK`: Maximum number of infections
-- `MAX_TIME`: Maximum simulation time steps
+- `MAX_TIME`: Maximum simulation time (days)
 - `MIN_INFECTED`: Minimum outbreak size for acceptance
 - `simulate_until_size()`: Wrapper that retries simulations until minimum size reached
 
@@ -87,7 +92,7 @@ Each simulation produces:
 
 ### Standard Workflow
 
-1. **Run simulation** (e.g., `Rscript scripts/shutdown_threebody/shutdown_threebody_sim.R --seed 42`)
+1. **Run simulation** (e.g., `Rscript scripts/two_cluster/two_cluster_sim.R --seed 42 --skip_tree`)
 2. **Sequence evolution** via phastSim (molecular clock simulation on transmission tree)
 3. **Subsampling** (optional) via `scripts/common/subsample_fasta.py`, which thins the
    phastSim FASTA to a target tip count before the O(n^2) pairsnp step. With `--meta`
@@ -95,19 +100,36 @@ Each simulation produces:
    the file; uniform sampling tracks incidence and leaves the early epidemic with too
    few tips for a stable RR estimate. Sampling stays uniform within each bin, so deme
    composition inside a time window is unbiased. Used by `two_cluster`.
+   `two_cluster` subsamples *before* phastSim instead, and never builds nosoi's full
+   tree: the sim runs with `--skip_tree` (writing `sim_info.tsv` with the run's end
+   time), `subsample_fasta.py --ids-out` picks the tips from `meta.tsv` with the same
+   stratified allocation, and `scripts/common/build_sampled_tree.R` builds the tree of
+   just those tips straight from the `inf.by` chain. Without a carrying capacity one seed
+   can reach 250k hosts; `getTransmissionTree()` then takes the better part of an hour,
+   and the full FASTA (~30 kb/tip, ~7.5 GB) would nearly fill the disk. The builder
+   follows nosoi's conventions (tips at `out.time`, or end time if still active; one node
+   per infector x infection time). `scripts/common/validate_sampled_tree.R` checks it
+   against `keep.tip(getTransmissionTree(sim), ids)` on small sims -- rerun it after any
+   nosoi upgrade or edit to the builder.
 4. **Pairwise SNP analysis** via pairsnp (identify identical/similar sequences)
 5. **Relative risk calculation** using `scripts/common/calc_rr.R` (geographic association analysis)
 
 ### Batch Execution
 
 Shell scripts run parameter sweeps across multiple seeds:
-- `scripts/shutdown_threebody/shutdown_threebody_batch.sh` - Shutdown scenario iterations (50 seeds)
-- `scripts/carrying_capacity/carrying_capacity_batch.sh` - Carrying capacity scenario iterations
-- `scripts/two_cluster/two_cluster_batch.sh [SCENARIO] [N_SEEDS] [SUBSAMPLE_N]` -
-  Two-cluster sweep, defaults `homogeneous 25 8000`. Run it once per scenario; it
-  clears only the accumulators for the scenario it was given, and every output file is
-  prefixed with the scenario name so sequential sweeps do not overwrite each other.
-  Ends by invoking `two_cluster_plot.R` for that scenario.
+- `scripts/two_cluster/two_cluster_batch.sh [SCENARIO] [N_SEEDS] [SUBSAMPLE_N] [INTERVENTION]` -
+  Two-cluster sweep, defaults `homogeneous 25 50000 0`. `SCENARIO=all` runs all six
+  arms in sequence (per-arm logs in `results/two_cluster/logs/<date>/`, progress in
+  `driver.log`) and then `two_cluster_combined_plot.R`; launch it detached with
+  `nohup caffeinate -dimsu bash ... & disown`, since 20 seeds per arm take about a day. Otherwise run it once per arm; it
+  clears only the accumulators for the arm it was given, and every output file is
+  prefixed with the arm name so sequential sweeps do not overwrite each other.
+  Ends by invoking `two_cluster_plot.R` for that arm. `INTERVENTION=1` passes
+  `--vaccine` to the sim (transmission in cluster 1 scaled by `1 - VE` from
+  `TIME_VACC = 175`), reported generically as "Intervention", and prefixes outputs
+  `<scenario>_intervention_`. `_RR.R`, `_reproduction_region.R` and `_plot.R` take the matching
+  `--intervention` flag and add an `intervention` column to every accumulator. Because
+  the intervention starts after burn-in, all six arms stay paired by seed.
 
 Pattern: Each script loops over seeds, runs simulation → phastSim → (subsample) → pairsnp → RR calculation → cleanup
 
@@ -123,7 +145,6 @@ Most R scripts accept:
 
 Example:
 ```bash
-Rscript scripts/shutdown_threebody/shutdown_threebody_sim.R --seed 123 --draw
 Rscript scripts/two_cluster/two_cluster_sim.R --seed 123 --scenario heterogeneous --draw
 ```
 
@@ -141,14 +162,18 @@ RR interpretation: RR(X,Y) > 1 indicates more genetic similarity between demes X
 `two_cluster_RR.R` runs this at two resolutions -- the 6x6 deme matrix and a collapsed
 C1/C2 cluster matrix -- and on two time decompositions: one estimate per intervention
 phase (pooling all pairs in the phase, which is far more stable than taking a median
-over narrow windows) and a 20-step sliding window every 5 steps.
+over narrow windows) and a right-sided 40-day sliding window every 5 days: `tpoint = t`
+covers infections in [t - 40, t], inclusive, so a value never uses infections after t.
+(Until 2026-11-12 it was centred, [t - 20, t + 20]; the 2026-11-11 sweep's accumulators
+were relabelled t -> t + 20, which reproduces the same windows.)
 
 The `recovery_by_phase` plot does *not* use the burn-in phase as its baseline. It divides
-each pair's phase nRR by that pair's sliding-window nRR at `tpoint = 90` (the window
-[70, 110]), which is wide enough to stay stable for the sparse inter-cluster pairs. The
-narrower alternatives were tested and rejected: a strictly pre-intervention window loses
-too many inter-cluster pairs to emptiness, and a later-centred one is deflated by
-shutdown-era transmission, which pushes every recovery ratio above 1. Burn-in itself is
+each pair's phase nRR by that pair's sliding-window nRR at `BASELINE_TPOINT = 100` (the
+window [60, 100], the 40 days before the shutdown), which is wide enough to stay stable for
+the sparse inter-cluster pairs. Narrower windows were rejected for losing too many
+inter-cluster pairs to emptiness. (The centred-window era used [70, 110]; at 6 demes / 8k
+tips a strictly pre-shutdown window lost too many pairs, but at 4 demes / 50k it has no
+more empty pairs than [70, 110] did.) Burn-in itself is
 dropped from the figure -- the seeding period is intrinsically dense in identical
 sequences and not comparable to the later phases -- so `*_recovery_by_phase.tsv` now holds
 four phases, not five.
@@ -159,7 +184,8 @@ drops them silently, which is what the pseudo-log axis exists to prevent. Do not
 back to a plain log scale.
 
 The sliding-window figures (`nrr_by_pair`, `nrr_intra_vs_inter`) are drawn over
-`PLOT_TIME_MIN`..`PLOT_TIME_MAX` (90..300) only. The right edge matters: `MAX_TIME = 350`
+`PLOT_TIME_MIN`..`SLIDING_TIME_MAX` (100..320) only; `PLOT_TIME_MAX` (300) is the separate
+R(t) crop. 320 keeps the last window at [280, 320]. The right edge matters: `MAX_TIME = 350`
 is a hard stop, and `calc_rr()` needs *both* members of a pair inside the window, so tips
 near the end lose the partners that would have completed their pairs and nRR falls for
 reasons that have nothing to do with connectivity. The filter is applied to the data
@@ -171,31 +197,41 @@ hand if either moves.
 ### Plotting Scripts
 
 - `scripts/<scenario>/*_plot.R` scripts generate summary visualizations after batch runs
-- `scripts/two_cluster/two_cluster_combined_plot.R` - stacks all three arms' recovery
-  panels into one 6x8 PDF (`recovery_by_phase_combined.pdf`), and likewise the R(t)
-  panels (`rt_combined.pdf`). Run after every scenario has been plotted. Scenario display
+- `scripts/two_cluster/two_cluster_combined_plot.R` - lays out all six arms as 9x8 PDF
+  grids, written to `figs/pdf/`, rows = scenario, columns = No Intervention / Intervention: R(t) by region
+  (`rt_region_combined`), RR/nRR traces (`rr_by_pair_combined`, `nrr_by_pair_combined`),
+  recovery by phase on nRR and RR (`recovery_by_phase_combined`,
+  `recovery_by_phase_rr_combined`). It reads the per-seed `rr_phase` / `rr_sliding`
+  accumulators directly. Everything is computed per deme pair and coloured by group
+  (Within Region 1, Within Region 2, A-X bridge, Other across region; same-deme pairs in
+  grey in the RR figures). Traces are a spaghetti plot of the raw sliding-window values, one
+  line per pair per seed, on a pseudo-log axis so empty windows show as 0. Recovery boxes hold every pair x seed in a group. The three non-bridge across-region pairs (A-Y, B-X, B-Y) are the sparsest, so expect exact zeros there in the early phases. Missing arms are skipped with a warning. Run after every scenario has been plotted. Scenario display
   names live in `SCENARIO_LABELS` (`none` -> "No Shutdown", `homogeneous` -> "Uniform
   Recovery", `heterogeneous` -> "Staggered Recovery"); the same map is duplicated in
-  `two_cluster_plot.R`, so a rename must touch both. `PLOT_TIME_MAX`, `RT_SPAN`, `RT_SEEDING_END`
-  (50) and the fixed R(t) axis `RT_LIM` (0..3) are also duplicated between the two
-  scripts. R(t) figures start at t = 0 with t < 50 shaded light orange as "Seeding" (not
+  `two_cluster_plot.R`, so a rename must touch both. `PLOT_TIME_MIN`, `SLIDING_TIME_MAX` and
+  `BASELINE_TPOINT` are also duplicated between the two scripts. The R(t) figure starts
+  at t = 0 with t < 50 shaded as "Seeding" (not
   "burn-in", which names the t < 100 phase). The seeding spike (R ~ 10) runs off the top
   of the axis via `coord_cartesian()` but stays in the loess fit, which spans the full
   range by choice -- this widens the confidence band across the whole series.
-- `scripts/two_cluster/two_cluster_reproduction.R` - per-seed effective reproduction
-  number, run by the batch after `_RR.R` (same `--seed` / `--scenario` args). R(t) is the
-  mean offspring count of hosts infected in a centred `RT_WINDOW`-day window (7), taken
-  from the full `meta.tsv`, so it is independent of subsampling. Hosts with zero
-  offspring must be counted -- tallying `inf.by` alone drops them and inflates R(t).
-  Appends to `<scenario>_rt.tsv`; the tail near `MAX_TIME` is censored low, so plots crop
-  at `PLOT_TIME_MAX`.
+- `scripts/two_cluster/two_cluster_reproduction_region.R` - per-seed effective
+  reproduction number by region, run by the batch after `_RR.R` (same `--seed` /
+  `--scenario` / `--intervention` args). R(t) is the mean offspring count of hosts
+  infected in a centred `RT_WINDOW`-day window (7), taken from the full `meta.tsv`, so it
+  is independent of subsampling; each host counts toward the region it was infected in.
+  Hosts with zero offspring must be counted -- tallying `inf.by` alone drops them and
+  inflates R(t). Appends to `<arm>_rt_region.tsv`; the tail near `MAX_TIME` is censored
+  low, so the combined plot crops at `PLOT_TIME_MAX` (300). Region 1 falling after t = 175
+  while Region 2 holds is the check that the intervention works. The pooled
+  `two_cluster_reproduction.R` was removed on 2026-11-12; pooled R(t), if ever needed, is
+  the `n_hosts`-weighted mean of the two regions' rows.
 - `scripts/two_cluster/two_cluster_network_plot.R` - movement-structure diagram, written
-  to `movement_network.pdf` at the repository root rather than under `results/`, since it
-  is a property of the model rather than of any sweep. It re-declares `BASE_WEIGHTS`
+  to `figs/pdf/movement_network.pdf` rather than under `results/`, since it is a property
+  of the model rather than of any sweep. It re-declares `BASE_WEIGHTS`
   because sourcing `two_cluster_sim.R` would run a simulation -- **if that matrix changes
-  in the sim, change it here too.**
-- `scripts/common/sim_analysis.R` - General purpose analysis utilities
-- `scripts/common/plot_pair_time.R` - Temporal analysis of sequence pairs
+  in the sim, change it here too.** It also writes `figs/pdf/movement_design.pdf`:
+  the diagram stacked over each scenario's movement schedule, which likewise duplicates
+  `PHASE_STARTS`, `PHASE_ALL` and `PHASE_BRIDGE_HETERO` from the sim.
 
 ## External Tools
 

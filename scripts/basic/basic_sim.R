@@ -52,7 +52,7 @@ MAX_OUTBREAK <- 50
 MAX_TIME <- 100
 basic_sim <- nosoiSim(type="single", #Single vs two host species
                       popStructure = "none", #Homogenous pop
-                      length.sim = MAX_TIME, #Maximum number of timesteps
+                      length.sim = MAX_TIME, #Maximum number of days
                       max.infected = MAX_OUTBREAK, #Maximum total number the simulation will infect
                       init.individuals = 1,
                       nContact = n_Contact_fct, #Main function for agent contacts

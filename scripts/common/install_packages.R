@@ -17,7 +17,8 @@ cran_packages <- c(
   "ggraph",
   "ape",
   "tidytree",
-  "argparse"
+  "argparse",
+  "patchwork"
 )
 
 # List of Bioconductor packages

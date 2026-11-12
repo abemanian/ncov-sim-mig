@@ -27,6 +27,14 @@ collect_args <- function() {
     type = "character",
     default = "homogeneous",
     help = "Scenario: none, homogeneous, heterogeneous")
+  parser$add_argument("--vaccine",
+    action = "store_true",
+    default = FALSE,
+    help = "Simulate vaccine being used in one cluster, to decrease force of infection")
+  parser$add_argument("--skip_tree",
+    action = "store_true",
+    default = FALSE,
+    help = "Debugging/test mode, does a run without creating the transmission tree at the end")
   parser$parse_args()
 }
 
@@ -34,6 +42,8 @@ args <- collect_args()
 sim_seed <- args$seed
 draw_plots <- args$draw
 scenario <- args$scenario
+vaccine_used <- args$vaccine
+skip_tree <- args$skip_tree
 
 VALID_SCENARIOS <- c("none", "homogeneous", "heterogeneous")
 if (!scenario %in% VALID_SCENARIOS) {
@@ -43,38 +53,40 @@ if (!scenario %in% VALID_SCENARIOS) {
 # Display name for plot titles; `scenario` itself stays as-is for filenames
 scenario_label <- function(s) if (s == "none") "No Shutdown" else s
 
+# Output prefix: the vaccine run is reported generically as "Intervention", and
+# gets its own prefix so it does not overwrite the matching non-intervention arm
+arm <- if (vaccine_used) paste0(scenario, "_intervention") else scenario
+arm_label <- paste0(scenario_label(scenario), if (vaccine_used) " + Intervention" else "")
+
 # ---------------------------------------------------------------------------
 # Population structure
 # ---------------------------------------------------------------------------
-# Two fully-connected triangles joined by a single direct edge, A <-> X. There
-# is no intermediate bridge deme: A and X are each other's only route between
-# clusters, and each is also an ordinary member of its own triangle.
+# Two pairs of demes joined by a single direct edge, A <-> X. There is no
+# intermediate bridge deme: A and X are each other's only route between
+# clusters, and each is also an ordinary member of its own pair. B and Y reach
+# the other cluster only through their gateway.
 #
-#    B----C          Y----Z
-#     \  /            \  /
-#      A ---- 0.3 ---- X
+#    B ---- A ---- 0.3 ---- X ---- Y
 
-DEMES <- c("A", "B", "C", "X", "Y", "Z")
-CLUSTER_1 <- c("A", "B", "C")
-CLUSTER_2 <- c("X", "Y", "Z")
+DEMES <- c("A", "B", "X", "Y")
+CLUSTER_1 <- c("A", "B")
+CLUSTER_2 <- c("X", "Y")
 GATEWAYS <- c("A", "X")
 
-CLUSTER_OF <- c(A = "C1", B = "C1", C = "C1", X = "C2", Y = "C2", Z = "C2")
+CLUSTER_OF <- c(A = "C1", B = "C1", X = "C2", Y = "C2")
 
-# Baseline probability that a host moves at all, per timestep
+# Baseline probability that a host moves at all, per day
 PROB_MOVE <- 0.10
 
 # Destination weights conditional on moving (rows sum to 1)
 BASE_WEIGHTS <- matrix(
   c(
-    0.00, 0.35, 0.35, 0.30, 0.00, 0.00, # A -> B .35  C .35  X .30
-    0.50, 0.00, 0.50, 0.00, 0.00, 0.00, # B -> A .50  C .50
-    0.50, 0.50, 0.00, 0.00, 0.00, 0.00, # C -> A .50  B .50
-    0.30, 0.00, 0.00, 0.00, 0.35, 0.35, # X -> A .30  Y .35  Z .35
-    0.00, 0.00, 0.00, 0.50, 0.00, 0.50, # Y -> X .50  Z .50
-    0.00, 0.00, 0.00, 0.50, 0.50, 0.00  # Z -> X .50  Y .50
+    0.00, 0.70, 0.30, 0.00, # A -> B .70  X .30
+    1.00, 0.00, 0.00, 0.00, # B -> A 1.0
+    0.30, 0.00, 0.00, 0.70, # X -> A .30  Y .70
+    0.00, 0.00, 1.00, 0.00  # Y -> X 1.0
   ),
-  nrow = 6, byrow = TRUE,
+  nrow = 4, byrow = TRUE,
   dimnames = list(DEMES, DEMES)
 )
 
@@ -191,15 +203,22 @@ PROB_EXIT <- 1.0 / 7.0
 CONTACT_MEAN <- 4
 CONTACT_K <- 0.2
 
-INF_ALPHA <- 1
-INF_BETA <- 4
 
-MAX_CAPACITY <- 300
-CAPACITY_MIDPOINT <- MAX_CAPACITY / 2
-CAPACITY_SCALE <- MAX_CAPACITY / 10
+TIME_SEED <- 50
+TIME_VACC <- 175
+INF_ALPHA <- 20
+INF_BETA_0 <- 60
+INF_BETA_STABLE <- 260
+VE <- 0.2
 
-calc_capacity_factor <- function(n) {
-  1 / (1 + exp((n - CAPACITY_MIDPOINT) / CAPACITY_SCALE))
+calc_beta <- function(t){
+  if(t < TIME_SEED){
+    beta_slope = (INF_BETA_STABLE - INF_BETA_0)/TIME_SEED
+    beta <- t * beta_slope + INF_BETA_0
+  }else{
+    beta <- INF_BETA_STABLE
+  }
+  return(beta)
 }
 
 # ---------------------------------------------------------------------------
@@ -217,10 +236,8 @@ p_Move_fct <- function(t, prestime, current.in) {
 
   if (current.in == "A") p <- pmove[["A"]]
   if (current.in == "B") p <- pmove[["B"]]
-  if (current.in == "C") p <- pmove[["C"]]
   if (current.in == "X") p <- pmove[["X"]]
   if (current.in == "Y") p <- pmove[["Y"]]
-  if (current.in == "Z") p <- pmove[["Z"]]
 
   return(p)
 }
@@ -228,18 +245,17 @@ p_Move_fct <- function(t, prestime, current.in) {
 n_Contact_fct <- function(t) rnbinom(1, size = CONTACT_K, mu = CONTACT_MEAN)
 
 p_Trans_fct <- function(t, prestime, current.in, host.count, t_incub) {
-  # Movement is the only thing the intervention touches; transmission is
-  # identical in every deme and every phase.
+  # place_factor is 1 everywhere, but these lines are required: with diff.pTrans,
+  # nosoi refuses to run unless the body contains current.in == "<deme>" for
+  # every deme.
   if (current.in == "A") place_factor <- 1
   if (current.in == "B") place_factor <- 1
-  if (current.in == "C") place_factor <- 1
   if (current.in == "X") place_factor <- 1
   if (current.in == "Y") place_factor <- 1
-  if (current.in == "Z") place_factor <- 1
 
-  base_p <- rbeta(1, INF_ALPHA, INF_BETA)
-  capacity_factor <- calc_capacity_factor(host.count)
-  p <- base_p * capacity_factor * place_factor
+  base_p <- rbeta(1, INF_ALPHA, calc_beta((prestime)))
+  vaccine_factor <- (1 - (current.in %in% CLUSTER_1) * (prestime >= TIME_VACC) * (VE) * (vaccine_used))
+  p <- base_p * place_factor * vaccine_factor
   ifelse(t < t_incub, 0, p)
 }
 
@@ -255,7 +271,7 @@ param_pTrans <- list(t_incub = d_Incub)
 # Simulation
 # ---------------------------------------------------------------------------
 set.seed(sim_seed)
-MAX_OUTBREAK <- 120000
+MAX_OUTBREAK <- 1E7
 MAX_TIME <- 350
 MAX_TRIES <- 50
 MIN_INFECTED <- 200
@@ -269,6 +285,9 @@ T_INTERVENTION <- PHASE_STARTS[2]
 MIN_INFECTED_BURN_IN <- 100
 
 INIT_DEME <- "A"
+# Several introductions rather than one: averaging over independent chains makes
+# take-off timing, and so final outbreak size, far less variable between seeds
+INIT_INDIVIDUALS <- 5
 
 simulate_until_size <- function(tries, min_inf, min_burn_in) {
   for (k in 1:tries) {
@@ -278,7 +297,7 @@ simulate_until_size <- function(tries, min_inf, min_burn_in) {
       structure.matrix = phase_matrix(0),
       length.sim = MAX_TIME,
       max.infected = MAX_OUTBREAK,
-      init.individuals = 1,
+      init.individuals = INIT_INDIVIDUALS,
       init.structure = INIT_DEME,
 
       nContact = n_Contact_fct,
@@ -321,8 +340,10 @@ two_cluster_sim <- simulate_until_size(
 # getTableHosts() returns nosoi's internal data.table by reference and
 # getTransmissionTree() reorders it in place, so build the tree first and
 # detach with as_tibble() before deriving any column.
-tree_sim <- getTransmissionTree(two_cluster_sim)
-
+if(!skip_tree){
+  tree_sim <- getTransmissionTree(two_cluster_sim)
+  write.tree(tree_sim@phylo, "results/two_cluster/tree.nwk")
+}
 data_sim <- getTableHosts(two_cluster_sim) %>%
   as_tibble() %>%
   mutate(cluster = unname(CLUSTER_OF[as.character(inf.in)]))
@@ -346,15 +367,24 @@ schedule_log <- tibble(
     PHASE_ALL
   }
 ) %>%
-  mutate(seed = sim_seed, scenario = scenario)
+  mutate(seed = sim_seed, scenario = scenario, intervention = vaccine_used)
 
 if (!dir.exists("results/two_cluster")) {
   dir.create("results/two_cluster", recursive = TRUE)
 }
+# Diagnostic figures (--draw) go with the other per-arm JPGs, not with the data
+FIG_JPG_DIR <- "figs/jpg"
+if (!dir.exists(FIG_JPG_DIR)) dir.create(FIG_JPG_DIR, recursive = TRUE)
 
-write.tree(tree_sim@phylo, "results/two_cluster/tree.nwk")
 write_tsv(data_sim, "results/two_cluster/meta.tsv")
 write_tsv(schedule_log, "results/two_cluster/schedule.tsv")
+
+# End time of the run, which build_sampled_tree.R uses as the tip time of hosts
+# still active at the end (their out.time is NA in meta.tsv under --skip_tree)
+write_tsv(
+  tibble(seed = sim_seed, total_time = two_cluster_sim$total.time),
+  "results/two_cluster/sim_info.tsv"
+)
 
 # ---------------------------------------------------------------------------
 # Plots
@@ -372,12 +402,12 @@ if (draw_plots) {
     geom_line(alpha = 0.8) +
     scale_color_viridis(discrete = TRUE, option = "plasma", end = 0.85) +
     labs(
-      x = "Simulation Time", y = "New Cases", color = "Cluster",
-      title = paste0("Incidence by cluster (scenario: ", scenario_label(scenario), ")")
+      x = "Simulation Time (days)", y = "New Cases", color = "Cluster",
+      title = paste0("Incidence by cluster (scenario: ", arm_label, ")")
     ) +
     theme_bw()
   ggsave(
-    filename = paste0("results/two_cluster/", scenario, "_incidence.jpg"),
+    filename = paste0(FIG_JPG_DIR, "/", arm, "_incidence.jpg"),
     width = 10, height = 6, dpi = 192
   )
 
@@ -391,12 +421,12 @@ if (draw_plots) {
     geom_line(alpha = 0.8, color = "firebrick") +
     facet_wrap(vars(inf.in), ncol = 2, scales = "free_y") +
     labs(
-      x = "Simulation Time", y = "New Cases",
-      title = paste0("Incidence by deme (scenario: ", scenario_label(scenario), ")")
+      x = "Simulation Time (days)", y = "New Cases",
+      title = paste0("Incidence by deme (scenario: ", arm_label, ")")
     ) +
     theme_bw()
   ggsave(
-    filename = paste0("results/two_cluster/", scenario, "_incidence_deme.jpg"),
+    filename = paste0(FIG_JPG_DIR, "/", arm, "_incidence_deme.jpg"),
     width = 10, height = 8, dpi = 192
   )
 
@@ -414,13 +444,13 @@ if (draw_plots) {
     scale_color_manual(values = c("Within-cluster" = "#38c", "A-X bridge" = "#e94")) +
     ylim(0, 1.1) +
     labs(
-      x = "Simulation Time", y = "Fraction of baseline movement rate",
+      x = "Simulation Time (days)", y = "Fraction of baseline movement rate",
       color = NULL,
-      title = paste0("Movement schedule (scenario: ", scenario_label(scenario), ")")
+      title = paste0("Movement schedule (scenario: ", arm_label, ")")
     ) +
     theme_bw()
   ggsave(
-    filename = paste0("results/two_cluster/", scenario, "_schedule.jpg"),
+    filename = paste0(FIG_JPG_DIR, "/", arm, "_schedule.jpg"),
     width = 10, height = 5, dpi = 192
   )
 }
